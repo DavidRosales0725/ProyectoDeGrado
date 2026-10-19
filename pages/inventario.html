@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventario — TiendaApp SENA</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+
+<div class="app-wrapper">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1>Inventario</h1>
+        <p id="topbar-date"></p>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-primary" onclick="openModal('modal-ajuste')">
+          📥 Ajustar stock
+        </button>
+      </div>
+    </header>
+
+    <div class="page-body">
+      <div class="proto-banner">
+        🗄️ Vista del inventario actual. Puedes ajustar el stock de cualquier producto sin registrar una venta.
+      </div>
+
+      <!-- Stats -->
+      <div class="stat-grid" id="inv-stats"></div>
+
+      <!-- Tabla inventario -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Estado del inventario</span>
+          <div class="flex gap-3">
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="search" placeholder="Buscar…" oninput="renderInventario()" />
+            </div>
+            <select id="filtro-estado" onchange="renderInventario()" style="width:150px">
+              <option value="">Todos</option>
+              <option value="ok">Disponible</option>
+              <option value="low">Stock bajo</option>
+              <option value="out">Agotado</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Categoría</th>
+                <th>Stock actual</th>
+                <th>Stock mínimo</th>
+                <th>Nivel</th>
+                <th>Estado</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-inv"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Modal Ajustar stock -->
+<div class="modal-overlay" id="modal-ajuste">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Ajustar stock</h3>
+      <button class="modal-close" onclick="closeModal('modal-ajuste')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group" style="margin-bottom:18px">
+        <label>Producto</label>
+        <select id="ajuste-prod">
+          <option value="">Seleccionar producto…</option>
+        </select>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Tipo de ajuste</label>
+          <select id="ajuste-tipo">
+            <option value="entrada">📥 Entrada (sumar)</option>
+            <option value="salida">📤 Salida (restar)</option>
+            <option value="manual">🔧 Ajuste manual (definir)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Cantidad / Valor</label>
+          <input type="number" id="ajuste-cantidad" placeholder="Ej: 10" min="0" />
+        </div>
+        <div class="form-group full">
+          <label>Motivo</label>
+          <input type="text" id="ajuste-motivo" placeholder="Ej: Recepción de mercancía, devolución…" />
+        </div>
+      </div>
+      <div id="ajuste-preview" style="margin-top:16px;display:none"
+           class="proto-banner" style="background:var(--success-light);border-color:#BBF7D0;color:var(--success)">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-ajuste')">Cancelar</button>
+      <button class="btn btn-success" onclick="aplicarAjuste()">Aplicar ajuste</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="../js/store.js"></script>
+<script src="../js/ui.js"></script>
+<script>
+requireAuth();
+buildSidebar('inventario');
+
+function renderStats() {
+  const prods = getProductos();
+  const ok    = prods.filter(p => p.stock > p.stockMin).length;
+  const low   = prods.filter(p => p.stock > 0 && p.stock <= p.stockMin).length;
+  const out   = prods.filter(p => p.stock === 0).length;
+  const total = prods.reduce((s, p) => s + p.stock, 0);
+
+  document.getElementById('inv-stats').innerHTML = `
+    <div class="stat-card blue">
+      <div class="stat-icon">📦</div>
+      <div>
+        <div class="stat-label">Total unidades</div>
+        <div class="stat-value">${total}</div>
+        <div class="stat-sub">en todo el inventario</div>
+      </div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-icon">✅</div>
+      <div>
+        <div class="stat-label">Disponibles</div>
+        <div class="stat-value">${ok}</div>
+        <div class="stat-sub">productos con buen stock</div>
+      </div>
+    </div>
+    <div class="stat-card amber">
+      <div class="stat-icon">⚠️</div>
+      <div>
+        <div class="stat-label">Stock bajo</div>
+        <div class="stat-value">${low}</div>
+        <div class="stat-sub">requieren reposición</div>
+      </div>
+    </div>
+    <div class="stat-card ${out > 0 ? 'red' : 'green'}">
+      <div class="stat-icon">${out > 0 ? '🔴' : '✅'}</div>
+      <div>
+        <div class="stat-label">Agotados</div>
+        <div class="stat-value">${out}</div>
+        <div class="stat-sub">sin existencias</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderInventario() {
+  const q      = document.getElementById('search').value.toLowerCase();
+  const estado = document.getElementById('filtro-estado').value;
+  let prods    = getProductos();
+
+  if (q) prods = prods.filter(p => p.nombre.toLowerCase().includes(q));
+  if (estado === 'ok')  prods = prods.filter(p => p.stock > p.stockMin);
+  if (estado === 'low') prods = prods.filter(p => p.stock > 0 && p.stock <= p.stockMin);
+  if (estado === 'out') prods = prods.filter(p => p.stock === 0);
+
+  const tbody = document.getElementById('tbody-inv');
+  if (!prods.length) {
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🗄️</div><p>Sin resultados</p></div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = prods.map(p => {
+    const total  = p.stock + p.stockMin;
+    const pct    = Math.min(Math.round((p.stock / (p.stockMin * 2 || 1)) * 100), 100);
+    const isOk   = p.stock > p.stockMin;
+    const isLow  = p.stock > 0 && p.stock <= p.stockMin;
+    const isOut  = p.stock === 0;
+    const barCls = isOk ? 'high' : isLow ? 'medium' : 'low';
+    const bdg    = isOk ? '<span class="badge badge-success">Disponible</span>'
+                 : isLow ? '<span class="badge badge-warning">⚠️ Bajo</span>'
+                 : '<span class="badge badge-danger">🔴 Agotado</span>';
+    return `
+    <tr>
+      <td>
+        <div class="fw-600">${p.nombre}</div>
+        <div class="text-sm text-muted">${p.descripcion || '—'}</div>
+      </td>
+      <td><span class="badge badge-gray">${p.categoria}</span></td>
+      <td>
+        <span class="fw-600" style="font-size:16px;color:${isOut ? 'var(--danger)' : isLow ? 'var(--warning)' : 'var(--success)'}">
+          ${p.stock}
+        </span>
+        <span class="text-muted text-sm"> uds</span>
+      </td>
+      <td class="text-muted">${p.stockMin} uds</td>
+      <td style="min-width:140px">
+        <div class="stock-bar">
+          <div class="bar-track">
+            <div class="bar-fill ${barCls}" style="width:${pct}%"></div>
+          </div>
+          <span class="text-sm text-muted">${pct}%</span>
+        </div>
+      </td>
+      <td>${bdg}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="abrirAjuste(${p.id})">📥 Ajustar</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Llenar select de productos en modal ───────────────────
+function llenarSelectProductos() {
+  const sel = document.getElementById('ajuste-prod');
+  const prods = getProductos();
+  sel.innerHTML = '<option value="">Seleccionar producto…</option>'
+    + prods.map(p => `<option value="${p.id}">${p.nombre} (stock: ${p.stock})</option>`).join('');
+}
+
+function abrirAjuste(id) {
+  llenarSelectProductos();
+  if (id) document.getElementById('ajuste-prod').value = id;
+  openModal('modal-ajuste');
+}
+
+document.querySelector('[onclick="openModal(\'modal-ajuste\')"]')
+  .addEventListener('click', llenarSelectProductos);
+
+// ── Vista previa del ajuste ──────────────────────────────
+['ajuste-prod','ajuste-tipo','ajuste-cantidad'].forEach(el =>
+  document.getElementById(el).addEventListener('input', previewAjuste)
+);
+
+function previewAjuste() {
+  const prodId    = parseInt(document.getElementById('ajuste-prod').value);
+  const tipo      = document.getElementById('ajuste-tipo').value;
+  const cantidad  = parseInt(document.getElementById('ajuste-cantidad').value) || 0;
+  const preview   = document.getElementById('ajuste-preview');
+
+  if (!prodId || !cantidad) { preview.style.display = 'none'; return; }
+
+  const p = getProductos().find(x => x.id === prodId);
+  if (!p) return;
+
+  let nuevo = p.stock;
+  if (tipo === 'entrada')  nuevo = p.stock + cantidad;
+  if (tipo === 'salida')   nuevo = Math.max(0, p.stock - cantidad);
+  if (tipo === 'manual')   nuevo = cantidad;
+
+  preview.style.display = 'flex';
+  preview.textContent = `📊 ${p.nombre}: ${p.stock} → ${nuevo} unidades`;
+}
+
+function aplicarAjuste() {
+  const prodId   = parseInt(document.getElementById('ajuste-prod').value);
+  const tipo     = document.getElementById('ajuste-tipo').value;
+  const cantidad = parseInt(document.getElementById('ajuste-cantidad').value);
+
+  if (!prodId || isNaN(cantidad)) {
+    showToast('Selecciona un producto y una cantidad válida.', 'warning');
+    return;
+  }
+
+  const p = getProductos().find(x => x.id === prodId);
+  let nuevo = p.stock;
+  if (tipo === 'entrada')  nuevo = p.stock + cantidad;
+  if (tipo === 'salida')   nuevo = Math.max(0, p.stock - cantidad);
+  if (tipo === 'manual')   nuevo = cantidad;
+
+  actualizarProducto(prodId, { stock: nuevo });
+  showToast(`Stock de "${p.nombre}" actualizado a ${nuevo} uds.`, 'success');
+  closeModal('modal-ajuste');
+  document.getElementById('ajuste-prod').value     = '';
+  document.getElementById('ajuste-cantidad').value = '';
+  document.getElementById('ajuste-preview').style.display = 'none';
+  renderStats();
+  renderInventario();
+}
+
+renderStats();
+renderInventario();
+</script>
+</body>
+</html>

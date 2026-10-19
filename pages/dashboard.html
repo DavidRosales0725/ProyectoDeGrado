@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — TiendaApp SENA</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+
+<div class="app-wrapper">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="main-content">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1>Dashboard</h1>
+        <p id="topbar-date"></p>
+      </div>
+      <div class="topbar-right">
+        <span class="topbar-date" id="topbar-time"></span>
+      </div>
+    </header>
+
+    <!-- Contenido -->
+    <div class="page-body">
+
+      <!-- Banner prototipo -->
+      <div class="proto-banner">
+        🧪 <strong>Prototipo académico SENA</strong> — Los datos son simulados con localStorage. No hay backend ni base de datos real.
+      </div>
+
+      <!-- Stats -->
+      <div class="stat-grid" id="stat-grid">
+        <!-- Se genera con JS -->
+      </div>
+
+      <div class="dashboard-grid">
+
+        <!-- Últimas ventas -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">📋 Últimas ventas</span>
+            <a href="ventas.html" class="btn btn-ghost btn-sm">Ver todas →</a>
+          </div>
+          <div class="table-wrap">
+            <table id="tabla-ventas-recientes">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Cliente</th>
+                  <th>Fecha</th>
+                  <th>Total</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-ventas"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Alertas de stock -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">⚠️ Stock bajo</span>
+            <a href="inventario.html" class="btn btn-ghost btn-sm">Ver inventario →</a>
+          </div>
+          <div class="card-body" id="alertas-stock">
+            <!-- Se genera con JS -->
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="../js/store.js"></script>
+<script src="../js/ui.js"></script>
+<script>
+requireAuth();
+buildSidebar('dashboard');
+
+// ── Reloj en vivo ──────────────────────────────────────────
+function tickClock() {
+  const el = document.getElementById('topbar-time');
+  if (el) el.textContent = new Date().toLocaleTimeString('es-CO');
+}
+tickClock();
+setInterval(tickClock, 1000);
+
+// ── Stats cards ───────────────────────────────────────────
+function renderStats() {
+  const s = getStats();
+  const grid = document.getElementById('stat-grid');
+  grid.innerHTML = `
+    <div class="stat-card blue">
+      <div class="stat-icon">📦</div>
+      <div>
+        <div class="stat-label">Total productos</div>
+        <div class="stat-value">${s.totalProductos}</div>
+        <div class="stat-sub">en catálogo activo</div>
+      </div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-icon">💰</div>
+      <div>
+        <div class="stat-label">Ingresos hoy</div>
+        <div class="stat-value" style="font-size:20px">${formatPeso(s.ingresoHoy)}</div>
+        <div class="stat-sub">${s.ventasHoy} venta${s.ventasHoy !== 1 ? 's' : ''} registrada${s.ventasHoy !== 1 ? 's' : ''}</div>
+      </div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-icon">🛒</div>
+      <div>
+        <div class="stat-label">Total ventas</div>
+        <div class="stat-value">${s.totalVentas}</div>
+        <div class="stat-sub">${formatPeso(s.ingresoTotal)} acumulado</div>
+      </div>
+    </div>
+    <div class="stat-card ${s.stockBajo > 0 ? 'red' : 'green'}">
+      <div class="stat-icon">${s.stockBajo > 0 ? '🔴' : '✅'}</div>
+      <div>
+        <div class="stat-label">Alertas de stock</div>
+        <div class="stat-value">${s.stockBajo}</div>
+        <div class="stat-sub">${s.stockBajo > 0 ? 'producto(s) con stock bajo' : 'Stock al día'}</div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Tabla ventas recientes ────────────────────────────────
+function renderVentasRecientes() {
+  const ventas = getVentas().slice(-5).reverse();
+  const tbody  = document.getElementById('tbody-ventas');
+  if (!ventas.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:24px">Sin ventas registradas</td></tr>';
+    return;
+  }
+  tbody.innerHTML = ventas.map(v => `
+    <tr>
+      <td><span class="fw-600">${v.id}</span></td>
+      <td>${v.cliente}</td>
+      <td class="text-muted text-sm">${formatFecha(v.fecha)}</td>
+      <td class="fw-600" style="color:var(--success)">${formatPeso(v.total)}</td>
+      <td><span class="badge badge-success">✓ ${v.estado}</span></td>
+    </tr>
+  `).join('');
+}
+
+// ── Alertas de stock ──────────────────────────────────────
+function renderAlertasStock() {
+  const prods  = getProductos().filter(p => p.stock <= p.stockMin);
+  const el     = document.getElementById('alertas-stock');
+
+  if (!prods.length) {
+    el.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">✅</div>
+        <p>Todos los productos tienen stock suficiente.</p>
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = prods.map(p => {
+    const pct  = Math.round((p.stock / p.stockMin) * 100);
+    const cls  = p.stock === 0 ? 'low' : 'medium';
+    const lbl  = p.stock === 0 ? 'Agotado' : 'Stock bajo';
+    const badgeCls = p.stock === 0 ? 'badge-danger' : 'badge-warning';
+    return `
+    <div style="padding:12px 0;border-bottom:1px solid var(--gray-100);">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="fw-600" style="font-size:13.5px;flex:1">${p.nombre}</span>
+        <span class="badge ${badgeCls}">${lbl}</span>
+      </div>
+      <div class="stock-bar">
+        <div class="bar-track">
+          <div class="bar-fill ${cls}" style="width:${Math.min(pct,100)}%"></div>
+        </div>
+        <span class="text-sm text-muted">${p.stock} / ${p.stockMin} mín</span>
+      </div>
+    </div>`;
+  }).join('') + `
+    <a href="inventario.html" class="btn btn-ghost btn-sm mt-3" style="width:100%;justify-content:center">
+      Ver inventario completo →
+    </a>`;
+}
+
+renderStats();
+renderVentasRecientes();
+renderAlertasStock();
+</script>
+</body>
+</html>

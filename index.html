@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Iniciar Sesión — TiendaApp SENA</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<div class="login-page">
+
+  <!-- Panel izquierdo: branding -->
+  <div class="login-panel-left">
+    <div class="login-brand">
+      <div class="login-logo">🏪</div>
+      <h1>TiendaApp</h1>
+      <p>Sistema de gestión de ventas e inventario para pequeñas y medianas tiendas.</p>
+    </div>
+
+    <div class="login-features">
+      <div class="login-feature">
+        <div class="ft-icon">📦</div>
+        Control de productos e inventario en tiempo real
+      </div>
+      <div class="login-feature">
+        <div class="ft-icon">🛒</div>
+        Registro ágil de ventas y descuento automático de stock
+      </div>
+      <div class="login-feature">
+        <div class="ft-icon">📊</div>
+        Dashboard con métricas clave del negocio
+      </div>
+      <div class="login-feature">
+        <div class="ft-icon">⚠️</div>
+        Alertas de stock mínimo por producto
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel derecho: formulario -->
+  <div class="login-panel-right">
+    <div class="login-form-box">
+      <h2>Bienvenido de nuevo</h2>
+      <p>Ingresa tus credenciales para continuar.</p>
+
+      <div id="error-msg" style="display:none;margin-bottom:16px"
+           class="badge badge-danger" style="width:100%;padding:10px 14px;border-radius:8px;font-size:13px">
+        ❌ Correo o contraseña incorrectos
+      </div>
+
+      <div class="form-group">
+        <label for="correo">Correo electrónico</label>
+        <input type="email" id="correo" placeholder="admin@tienda.com" />
+      </div>
+
+      <div class="form-group">
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" placeholder="••••••••" />
+      </div>
+
+      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;font-size:15px;margin-top:6px"
+              onclick="doLogin()">
+        Iniciar sesión →
+      </button>
+
+      <div class="demo-hint">
+        <strong>🧪 Datos de acceso para demo</strong>
+        Correo: <code>admin@tienda.com</code><br>
+        Contraseña: <code>1234</code>
+      </div>
+
+      <p style="margin-top:20px;font-size:11.5px;color:var(--gray-400);text-align:center">
+        Proyecto académico SENA · Prototipo funcional v1.0
+      </p>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast-container"></div>
+
+<script src="js/store.js"></script>
+<script src="js/ui.js"></script>
+<script>
+  // Si ya está logueado, ir directo al dashboard
+  if (isLoggedIn()) window.location.href = 'pages/dashboard.html';
+
+  // Permitir enter para login
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+
+  function doLogin() {
+    const correo   = document.getElementById('correo').value.trim();
+    const password = document.getElementById('password').value.trim();
+    const errEl    = document.getElementById('error-msg');
+
+    if (!correo || !password) {
+      errEl.textContent = '⚠️ Completa todos los campos';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    const usuario = login(correo, password);
+    if (!usuario) {
+      errEl.textContent = '❌ Correo o contraseña incorrectos';
+      errEl.style.display = 'block';
+      document.getElementById('password').value = '';
+      return;
+    }
+
+    showToast(`¡Bienvenido, ${usuario.nombre.split(' ')[0]}!`, 'success');
+    setTimeout(() => window.location.href = 'pages/dashboard.html', 600);
+  }
+</script>
+</body>
+</html>

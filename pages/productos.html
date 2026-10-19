@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Productos — TiendaApp SENA</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+
+<div class="app-wrapper">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1>Productos</h1>
+        <p id="topbar-date"></p>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-primary" onclick="openModal('modal-producto')">
+          ＋ Agregar producto
+        </button>
+      </div>
+    </header>
+
+    <div class="page-body">
+      <div class="proto-banner">
+        📦 Aquí puedes agregar, editar y eliminar productos del catálogo. Los datos se guardan en el navegador con localStorage.
+      </div>
+
+      <!-- Filtros -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <span class="card-title">Catálogo de productos</span>
+          <div class="flex gap-3">
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="search" placeholder="Buscar producto…" oninput="renderTabla()" />
+            </div>
+            <select id="filtro-cat" onchange="renderTabla()" style="width:160px">
+              <option value="">Todas las categorías</option>
+              <option>Ropa</option>
+              <option>Calzado</option>
+              <option>Accesorios</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Producto</th>
+                <th>Categoría</th>
+                <th>Precio</th>
+                <th>Stock</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-productos"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Agregar/Editar producto -->
+<div class="modal-overlay" id="modal-producto">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">Agregar producto</h3>
+      <button class="modal-close" onclick="closeModal('modal-producto')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="prod-id" />
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Nombre del producto *</label>
+          <input type="text" id="prod-nombre" placeholder="Ej: Camisa manga larga" />
+        </div>
+        <div class="form-group">
+          <label>Categoría *</label>
+          <select id="prod-categoria">
+            <option value="">Seleccionar…</option>
+            <option>Ropa</option>
+            <option>Calzado</option>
+            <option>Accesorios</option>
+            <option>Otro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Precio (COP) *</label>
+          <input type="number" id="prod-precio" placeholder="Ej: 45000" min="0" />
+        </div>
+        <div class="form-group">
+          <label>Stock inicial *</label>
+          <input type="number" id="prod-stock" placeholder="Ej: 20" min="0" />
+        </div>
+        <div class="form-group">
+          <label>Stock mínimo</label>
+          <input type="number" id="prod-stockmin" placeholder="Ej: 5" min="0" value="5" />
+        </div>
+        <div class="form-group full">
+          <label>Descripción</label>
+          <input type="text" id="prod-desc" placeholder="Descripción breve del producto" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-producto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarProducto()">Guardar producto</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="../js/store.js"></script>
+<script src="../js/ui.js"></script>
+<script>
+requireAuth();
+buildSidebar('productos');
+
+function renderTabla() {
+  const q    = document.getElementById('search').value.toLowerCase();
+  const cat  = document.getElementById('filtro-cat').value;
+  let prods  = getProductos();
+
+  if (q)   prods = prods.filter(p => p.nombre.toLowerCase().includes(q) || p.descripcion?.toLowerCase().includes(q));
+  if (cat) prods = prods.filter(p => p.categoria === cat);
+
+  const tbody = document.getElementById('tbody-productos');
+
+  if (!prods.length) {
+    tbody.innerHTML = `<tr><td colspan="7">
+      <div class="empty-state">
+        <div class="empty-icon">📦</div>
+        <p>No hay productos que coincidan.</p>
+      </div>
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = prods.map((p, i) => {
+    const stockOk  = p.stock > p.stockMin;
+    const stockLow = p.stock > 0 && p.stock <= p.stockMin;
+    const badgeCls = stockOk ? 'badge-success' : stockLow ? 'badge-warning' : 'badge-danger';
+    const badgeTxt = stockOk ? 'Disponible'    : stockLow ? 'Stock bajo'    : 'Agotado';
+
+    return `<tr>
+      <td class="text-muted text-sm">${i + 1}</td>
+      <td>
+        <div class="fw-600">${p.nombre}</div>
+        <div class="text-sm text-muted">${p.descripcion || '—'}</div>
+      </td>
+      <td><span class="badge badge-gray">${p.categoria}</span></td>
+      <td class="fw-600">${formatPeso(p.precio)}</td>
+      <td>
+        <span class="fw-600">${p.stock}</span>
+        <span class="text-muted text-sm"> uds</span>
+      </td>
+      <td><span class="badge ${badgeCls}">${badgeTxt}</span></td>
+      <td>
+        <div class="flex gap-2">
+          <button class="btn btn-ghost btn-sm" onclick="editarProducto(${p.id})">✏️ Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="borrarProducto(${p.id})">🗑</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function limpiarModal() {
+  ['prod-id','prod-nombre','prod-desc'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('prod-categoria').value = '';
+  document.getElementById('prod-precio').value    = '';
+  document.getElementById('prod-stock').value     = '';
+  document.getElementById('prod-stockmin').value  = '5';
+  document.getElementById('modal-title').textContent = 'Agregar producto';
+}
+
+function editarProducto(id) {
+  const p = getProductos().find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('prod-id').value        = p.id;
+  document.getElementById('prod-nombre').value    = p.nombre;
+  document.getElementById('prod-categoria').value = p.categoria;
+  document.getElementById('prod-precio').value    = p.precio;
+  document.getElementById('prod-stock').value     = p.stock;
+  document.getElementById('prod-stockmin').value  = p.stockMin;
+  document.getElementById('prod-desc').value      = p.descripcion || '';
+  document.getElementById('modal-title').textContent = 'Editar producto';
+  openModal('modal-producto');
+}
+
+function guardarProducto() {
+  const nombre   = document.getElementById('prod-nombre').value.trim();
+  const cat      = document.getElementById('prod-categoria').value;
+  const precio   = parseFloat(document.getElementById('prod-precio').value);
+  const stock    = parseInt(document.getElementById('prod-stock').value);
+  const stockMin = parseInt(document.getElementById('prod-stockmin').value) || 5;
+  const desc     = document.getElementById('prod-desc').value.trim();
+  const id       = document.getElementById('prod-id').value;
+
+  if (!nombre || !cat || isNaN(precio) || isNaN(stock)) {
+    showToast('Completa todos los campos obligatorios.', 'warning');
+    return;
+  }
+
+  const datos = { nombre, categoria: cat, precio, stock, stockMin, descripcion: desc };
+
+  if (id) {
+    actualizarProducto(parseInt(id), datos);
+    showToast('Producto actualizado correctamente.', 'success');
+  } else {
+    agregarProducto(datos);
+    showToast('Producto agregado al catálogo.', 'success');
+  }
+
+  closeModal('modal-producto');
+  limpiarModal();
+  renderTabla();
+}
+
+function borrarProducto(id) {
+  const p = getProductos().find(x => x.id === id);
+  if (!p) return;
+  if (!confirm(`¿Eliminar "${p.nombre}"?\nEsta acción no se puede deshacer.`)) return;
+  eliminarProducto(id);
+  showToast('Producto eliminado.', 'default');
+  renderTabla();
+}
+
+// Resetear form al abrir modal en modo "agregar"
+document.getElementById('modal-producto').addEventListener('click', e => {
+  if (e.target.closest('.btn-primary') || e.target === e.currentTarget) return;
+});
+document.querySelector('[onclick="openModal(\'modal-producto\')"]').addEventListener('click', limpiarModal);
+
+renderTabla();
+</script>
+</body>
+</html>

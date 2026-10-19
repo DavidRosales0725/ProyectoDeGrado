@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ventas — TiendaApp SENA</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+
+<div class="app-wrapper">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1>Ventas</h1>
+        <p id="topbar-date"></p>
+      </div>
+    </header>
+
+    <div class="page-body">
+      <div class="proto-banner">
+        🛒 Registra una venta seleccionando productos. El stock se descuenta automáticamente al confirmar.
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex gap-3 mb-4">
+        <button class="btn btn-primary" onclick="showTab('nueva')" id="tab-nueva">➕ Nueva venta</button>
+        <button class="btn btn-ghost"  onclick="showTab('historial')" id="tab-hist">📋 Historial de ventas</button>
+      </div>
+
+      <!-- NUEVA VENTA -->
+      <div id="panel-nueva">
+        <div class="venta-layout">
+
+          <!-- Productos disponibles -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Seleccionar productos</span>
+              <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="search-prod" placeholder="Buscar…" oninput="renderCatalogo()" />
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Precio</th>
+                    <th>Stock</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-catalogo"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Carrito -->
+          <div class="card" style="position:sticky;top:80px">
+            <div class="card-header">
+              <span class="card-title">🛒 Carrito</span>
+              <button class="btn btn-ghost btn-sm" onclick="limpiarCarrito()">Limpiar</button>
+            </div>
+            <div class="card-body">
+
+              <div class="form-group" style="margin-bottom:16px">
+                <label>Nombre del cliente</label>
+                <input type="text" id="cliente-nombre" placeholder="Ej: Juan Martínez" />
+              </div>
+
+              <div id="cart-items">
+                <div class="cart-empty">
+                  <div style="font-size:32px;margin-bottom:8px">🛍️</div>
+                  <p style="font-size:13px;color:var(--gray-400)">Agrega productos al carrito</p>
+                </div>
+              </div>
+
+              <hr class="divider" />
+
+              <div class="flex items-center gap-2 mb-4">
+                <span style="font-size:13px;color:var(--gray-500);font-weight:600">TOTAL A PAGAR</span>
+                <span class="ml-auto cart-total" id="cart-total">$ 0</span>
+              </div>
+
+              <button class="btn btn-success" style="width:100%;justify-content:center;padding:13px;font-size:15px"
+                      onclick="confirmarVenta()">
+                ✅ Confirmar venta
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- HISTORIAL -->
+      <div id="panel-historial" style="display:none">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Historial de ventas</span>
+            <span class="badge badge-info" id="total-ventas-badge"></span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Cliente</th>
+                  <th>Productos</th>
+                  <th>Fecha</th>
+                  <th>Total</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-historial"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Confirmación de venta exitosa -->
+<div class="modal-overlay" id="modal-exito">
+  <div class="modal">
+    <div class="modal-body" style="text-align:center;padding:40px 24px">
+      <div style="font-size:56px;margin-bottom:16px">🎉</div>
+      <h3 style="font-size:20px;margin-bottom:8px">¡Venta registrada!</h3>
+      <p class="text-muted" id="exito-msg" style="font-size:14px;line-height:1.7"></p>
+      <div style="margin-top:24px;background:var(--gray-50);border-radius:10px;padding:16px;text-align:left;font-size:13px" id="exito-detalle"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" style="width:100%;justify-content:center"
+              onclick="closeModal('modal-exito');showTab('historial')">
+        Ver en historial →
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="../js/store.js"></script>
+<script src="../js/ui.js"></script>
+<script>
+requireAuth();
+buildSidebar('ventas');
+
+// ── Estado del carrito ────────────────────────────────────
+let carrito = []; // [{ productoId, nombre, qty, precioUnit, stockMax }]
+
+function showTab(tab) {
+  document.getElementById('panel-nueva').style.display    = tab === 'nueva'     ? '' : 'none';
+  document.getElementById('panel-historial').style.display = tab === 'historial' ? '' : 'none';
+  document.getElementById('tab-nueva').className = tab === 'nueva'     ? 'btn btn-primary' : 'btn btn-ghost';
+  document.getElementById('tab-hist').className  = tab === 'historial' ? 'btn btn-primary' : 'btn btn-ghost';
+  if (tab === 'historial') renderHistorial();
+}
+
+// ── Catálogo de selección ─────────────────────────────────
+function renderCatalogo() {
+  const q     = document.getElementById('search-prod').value.toLowerCase();
+  let prods   = getProductos().filter(p => p.stock > 0);
+  if (q) prods = prods.filter(p => p.nombre.toLowerCase().includes(q));
+
+  const tbody = document.getElementById('tbody-catalogo');
+  if (!prods.length) {
+    tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><div class="empty-icon">📦</div><p>Sin productos disponibles</p></div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = prods.map(p => {
+    const enCarrito = carrito.find(c => c.productoId === p.id);
+    return `
+    <tr>
+      <td>
+        <div class="fw-600">${p.nombre}</div>
+        <div class="text-sm"><span class="badge badge-gray">${p.categoria}</span></div>
+      </td>
+      <td class="fw-600">${formatPeso(p.precio)}</td>
+      <td>
+        <span class="${p.stock <= p.stockMin ? 'text-sm' : ''}"
+              style="color:${p.stock <= p.stockMin ? 'var(--warning)' : 'inherit'}">
+          ${p.stock} uds
+        </span>
+      </td>
+      <td>
+        ${enCarrito
+          ? `<button class="btn btn-danger btn-sm" onclick="quitarDelCarrito(${p.id})">✕ Quitar</button>`
+          : `<button class="btn btn-primary btn-sm" onclick="agregarAlCarrito(${p.id})">＋ Añadir</button>`}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function agregarAlCarrito(id) {
+  const p = getProductos().find(x => x.id === id);
+  if (!p) return;
+  if (!carrito.find(c => c.productoId === id)) {
+    carrito.push({ productoId: p.id, nombre: p.nombre, qty: 1, precioUnit: p.precio, stockMax: p.stock });
+  }
+  renderCarrito();
+  renderCatalogo();
+}
+
+function quitarDelCarrito(id) {
+  carrito = carrito.filter(c => c.productoId !== id);
+  renderCarrito();
+  renderCatalogo();
+}
+
+function cambiarQty(id, delta) {
+  const item = carrito.find(c => c.productoId === id);
+  if (!item) return;
+  item.qty = Math.max(1, Math.min(item.stockMax, item.qty + delta));
+  renderCarrito();
+}
+
+function limpiarCarrito() {
+  carrito = [];
+  document.getElementById('cliente-nombre').value = '';
+  renderCarrito();
+  renderCatalogo();
+}
+
+function renderCarrito() {
+  const el = document.getElementById('cart-items');
+
+  if (!carrito.length) {
+    el.innerHTML = `<div class="cart-empty">
+      <div style="font-size:32px;margin-bottom:8px">🛍️</div>
+      <p style="font-size:13px;color:var(--gray-400)">Agrega productos al carrito</p>
+    </div>`;
+    document.getElementById('cart-total').textContent = '$ 0';
+    return;
+  }
+
+  el.innerHTML = carrito.map(item => `
+    <div class="cart-item">
+      <div class="cart-item-info">
+        <div class="cart-item-name">${item.nombre}</div>
+        <div class="cart-item-price">${formatPeso(item.precioUnit)} c/u</div>
+      </div>
+      <div class="qty-ctrl">
+        <button class="qty-btn" onclick="cambiarQty(${item.productoId}, -1)">−</button>
+        <span class="qty-val">${item.qty}</span>
+        <button class="qty-btn" onclick="cambiarQty(${item.productoId}, +1)">＋</button>
+      </div>
+      <div style="min-width:80px;text-align:right;font-weight:600;font-size:13.5px">
+        ${formatPeso(item.precioUnit * item.qty)}
+      </div>
+    </div>
+  `).join('');
+
+  const total = carrito.reduce((s, i) => s + i.precioUnit * i.qty, 0);
+  document.getElementById('cart-total').textContent = formatPeso(total);
+}
+
+function confirmarVenta() {
+  if (!carrito.length) {
+    showToast('Agrega al menos un producto al carrito.', 'warning');
+    return;
+  }
+  const cliente = document.getElementById('cliente-nombre').value.trim() || 'Cliente general';
+  const total   = carrito.reduce((s, i) => s + i.precioUnit * i.qty, 0);
+
+  const venta = registrarVenta({
+    cliente,
+    items: carrito.map(c => ({ productoId: c.productoId, nombre: c.nombre, qty: c.qty, precioUnit: c.precioUnit })),
+    total
+  });
+
+  // Mostrar modal de éxito
+  document.getElementById('exito-msg').textContent =
+    `Venta ${venta.id} registrada para ${cliente}. El stock fue descontado automáticamente.`;
+
+  document.getElementById('exito-detalle').innerHTML =
+    carrito.map(c => `
+      <div class="flex gap-2 mb-4">
+        <span style="flex:1">${c.nombre}</span>
+        <span class="text-muted">x${c.qty}</span>
+        <span class="fw-600">${formatPeso(c.precioUnit * c.qty)}</span>
+      </div>
+    `).join('') +
+    `<hr class="divider" />
+     <div class="flex gap-2">
+       <strong style="flex:1">Total</strong>
+       <strong style="color:var(--success)">${formatPeso(total)}</strong>
+     </div>`;
+
+  openModal('modal-exito');
+  limpiarCarrito();
+}
+
+// ── Historial ─────────────────────────────────────────────
+function renderHistorial() {
+  const ventas = getVentas().slice().reverse();
+  document.getElementById('total-ventas-badge').textContent = `${ventas.length} ventas`;
+  const tbody = document.getElementById('tbody-historial');
+
+  if (!ventas.length) {
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🛒</div><p>Aún no hay ventas registradas</p></div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = ventas.map(v => `
+    <tr>
+      <td><span class="fw-600">${v.id}</span></td>
+      <td>${v.cliente}</td>
+      <td>
+        ${v.items.map(i => `<div class="text-sm">${i.nombre} <span class="text-muted">×${i.qty}</span></div>`).join('')}
+      </td>
+      <td class="text-muted text-sm">${formatFecha(v.fecha)}</td>
+      <td class="fw-600" style="color:var(--success)">${formatPeso(v.total)}</td>
+      <td><span class="badge badge-success">✓ ${v.estado}</span></td>
+    </tr>
+  `).join('');
+}
+
+// Inicializar
+renderCatalogo();
+</script>
+</body>
+</html>
