@@ -38,6 +38,9 @@ module.exports = function registrarProductos(ipcMain, db) {
     return db.prepare(`${SELECT} WHERE id = ?`).get(id);
   });
 
+   ipcMain.handle('productos:stockBajo', () =>
+     db.prepare('SELECT COUNT(*) AS n FROM productos WHERE activo = 1 AND stock <= stock_min').get().n);
+
   ipcMain.handle('productos:eliminar', (_, id) => {
     db.prepare('UPDATE productos SET activo = 0 WHERE id = ?').run(id);
     return true;

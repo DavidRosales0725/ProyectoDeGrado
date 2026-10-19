@@ -11,9 +11,21 @@ function showToast(msg, type = 'default', duration = 3000) {
 
   const el = document.createElement('div');
   el.className = `toast ${type !== 'default' ? type : ''}`;
-  el.innerHTML = `<span>${icons[type]}</span><span>${msg}</span>`;
+
+  const icono = document.createElement('span');
+  icono.textContent = icons[type] ?? icons.default;
+  const texto = document.createElement('span');
+  texto.textContent = msg;
+
+  el.append(icono, texto);
   container.appendChild(el);
   setTimeout(() => el.remove(), duration);
+}
+
+function escapeHtml(valor) {
+  return String(valor ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
 }
 
 // ── MODAL ─────────────────────────────────────────────────────
@@ -33,11 +45,18 @@ document.addEventListener('click', e => {
 });
 
 // ── NAVEGACIÓN LATERAL ────────────────────────────────────────
-function buildSidebar(activeKey) {
+async function buildSidebar(activeKey) {
   const usuario = getUsuario();
   if (!usuario) return;
 
   const initials = usuario.nombre.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
+  let stockBajo = 0;
+  try {
+    stockBajo = await window.api.contarStockBajo();
+  } catch (e) {
+    console.error('No se pudo consultar el stock bajo', e);
+  }
 
   const navItems = [
     { key: 'dashboard',  href: '../pages/dashboard.html', icon: '📊', label: 'Dashboard'   },
@@ -50,8 +69,8 @@ function buildSidebar(activeKey) {
     <a class="nav-item ${activeKey === item.key ? 'active' : ''}" href="${item.href}">
       <span class="nav-icon">${item.icon}</span>
       ${item.label}
-      ${item.key === 'inventario' && getStats().stockBajo > 0
-        ? `<span class="nav-badge">${getStats().stockBajo}</span>` : ''}
+      ${item.key === 'inventario' && stockBajo > 0
+        ? `<span class="nav-badge">${stockBajo}</span>` : ''}
     </a>
   `).join('');
 
@@ -74,16 +93,17 @@ function buildSidebar(activeKey) {
     </nav>
     <div class="sidebar-footer">
       <div class="user-card">
-        <div class="user-avatar">${initials}</div>
+        <div class="user-avatar">${escapeHtml(initials)}</div>
         <div class="user-info">
-          <strong>${usuario.nombre.split(' ')[0]}</strong>
-          <span>${usuario.rol}</span>
+          <strong>${escapeHtml(usuario.nombre.split(' ')[0])}</strong>
+          <span>${escapeHtml(usuario.rol)}</span>
         </div>
         <button class="btn-logout" onclick="doLogout()" title="Cerrar sesión">🚪</button>
       </div>
     </div>
   `;
 }
+
 
 function doLogout() {
   if (confirm('¿Cerrar sesión?')) {
