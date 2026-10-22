@@ -26,7 +26,7 @@
 
     <div class="page-body">
       <div class="proto-banner">
-        📦 Aquí puedes agregar, editar y eliminar productos del catálogo. Los datos se guardan en el navegador con localStorage.
+  📦 Aquí puedes agregar, editar y eliminar productos del catálogo. Los datos se guardan en la base de datos local (SQLite).
       </div>
 
       <!-- Filtros -->
@@ -124,10 +124,27 @@
 requireAuth();
 buildSidebar('productos');
 
+let productos = [];
+
+// Quita el prefijo técnico que agrega Electron a los errores
+function mensajeError(e) {
+  return String(e?.message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+}
+
+async function cargarProductos() {
+  try {
+    productos = await window.api.listarProductos();
+  } catch (e) {
+    showToast('No se pudieron cargar los productos.', 'error');
+    console.error(e);
+    productos = [];
+  }
+}
+
 function renderTabla() {
-  const q    = document.getElementById('search').value.toLowerCase();
-  const cat  = document.getElementById('filtro-cat').value;
-  let prods  = getProductos();
+  const q   = document.getElementById('search').value.toLowerCase();
+  const cat = document.getElementById('filtro-cat').value;
+  let prods = productos;
 
   if (q)   prods = prods.filter(p => p.nombre.toLowerCase().includes(q) || p.descripcion?.toLowerCase().includes(q));
   if (cat) prods = prods.filter(p => p.categoria === cat);
@@ -149,24 +166,25 @@ function renderTabla() {
     const stockLow = p.stock > 0 && p.stock <= p.stockMin;
     const badgeCls = stockOk ? 'badge-success' : stockLow ? 'badge-warning' : 'badge-danger';
     const badgeTxt = stockOk ? 'Disponible'    : stockLow ? 'Stock bajo'    : 'Agotado';
+    const id = Number(p.id);
 
     return `<tr>
       <td class="text-muted text-sm">${i + 1}</td>
       <td>
-        <div class="fw-600">${p.nombre}</div>
-        <div class="text-sm text-muted">${p.descripcion || '—'}</div>
+        <div class="fw-600">${escapeHtml(p.nombre)}</div>
+        <div class="text-sm text-muted">${escapeHtml(p.descripcion) || '—'}</div>
       </td>
-      <td><span class="badge badge-gray">${p.categoria}</span></td>
+      <td><span class="badge badge-gray">${escapeHtml(p.categoria)}</span></td>
       <td class="fw-600">${formatPeso(p.precio)}</td>
       <td>
-        <span class="fw-600">${p.stock}</span>
+        <span class="fw-600">${Number(p.stock)}</span>
         <span class="text-muted text-sm"> uds</span>
       </td>
       <td><span class="badge ${badgeCls}">${badgeTxt}</span></td>
       <td>
         <div class="flex gap-2">
-          <button class="btn btn-ghost btn-sm" onclick="editarProducto(${p.id})">✏️ Editar</button>
-          <button class="btn btn-danger btn-sm" onclick="borrarProducto(${p.id})">🗑</button>
+          <button class="btn btn-ghost btn-sm" onclick="editarProducto(${id})">✏️ Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="borrarProducto(${id})">🗑</button>
         </div>
       </td>
     </tr>`;
@@ -183,7 +201,7 @@ function limpiarModal() {
 }
 
 function editarProducto(id) {
-  const p = getProductos().find(x => x.id === id);
+  const p = productos.find(x => x.id === id);
   if (!p) return;
   document.getElementById('prod-id').value        = p.id;
   document.getElementById('prod-nombre').value    = p.nombre;
@@ -196,12 +214,13 @@ function editarProducto(id) {
   openModal('modal-producto');
 }
 
-function guardarProducto() {
+async function guardarProducto() {
   const nombre   = document.getElementById('prod-nombre').value.trim();
   const cat      = document.getElementById('prod-categoria').value;
   const precio   = parseFloat(document.getElementById('prod-precio').value);
   const stock    = parseInt(document.getElementById('prod-stock').value);
-  const stockMin = parseInt(document.getElementById('prod-stockmin').value) || 5;
+  const stockMinLeido = parseInt(document.getElementById('prod-stockmin').value);
+  const stockMin = isNaN(stockMinLeido) ? 5 : stockMinLeido;
   const desc     = document.getElementById('prod-desc').value.trim();
   const id       = document.getElementById('prod-id').value;
 
@@ -212,35 +231,48 @@ function guardarProducto() {
 
   const datos = { nombre, categoria: cat, precio, stock, stockMin, descripcion: desc };
 
-  if (id) {
-    actualizarProducto(parseInt(id), datos);
-    showToast('Producto actualizado correctamente.', 'success');
-  } else {
-    agregarProducto(datos);
-    showToast('Producto agregado al catálogo.', 'success');
+  try {
+    if (id) {
+      await window.api.actualizarProducto(parseInt(id), datos);
+      showToast('Producto actualizado correctamente.', 'success');
+    } else {
+      await window.api.crearProducto(datos);
+      showToast('Producto agregado al catálogo.', 'success');
+    }
+  } catch (e) {
+    showToast(mensajeError(e), 'error');
+    return; // deja el modal abierto para corregir
   }
 
   closeModal('modal-producto');
   limpiarModal();
+  await cargarProductos();
   renderTabla();
 }
 
-function borrarProducto(id) {
-  const p = getProductos().find(x => x.id === id);
+async function borrarProducto(id) {
+  const p = productos.find(x => x.id === id);
   if (!p) return;
-  if (!confirm(`¿Eliminar "${p.nombre}"?\nEsta acción no se puede deshacer.`)) return;
-  eliminarProducto(id);
-  showToast('Producto eliminado.', 'default');
+  if (!confirm(`¿Eliminar "${p.nombre}"?`)) return;
+
+  try {
+    await window.api.eliminarProducto(id);
+    showToast('Producto eliminado.', 'default');
+  } catch (e) {
+    showToast(mensajeError(e), 'error');
+    return;
+  }
+  await cargarProductos();
   renderTabla();
 }
 
-// Resetear form al abrir modal en modo "agregar"
-document.getElementById('modal-producto').addEventListener('click', e => {
-  if (e.target.closest('.btn-primary') || e.target === e.currentTarget) return;
-});
+// Limpiar el formulario al abrir el modal en modo "agregar"
 document.querySelector('[onclick="openModal(\'modal-producto\')"]').addEventListener('click', limpiarModal);
 
-renderTabla();
+(async () => {
+  await cargarProductos();
+  renderTabla();
+})();
 </script>
 </body>
 </html>
