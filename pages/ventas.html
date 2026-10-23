@@ -71,6 +71,20 @@
                 <input type="text" id="cliente-nombre" placeholder="Ej: Juan Martínez" />
               </div>
 
+              <div class="form-group" style="margin-bottom:16px">
+                <label for="metodo-pago">Método de pago</label>
+                <select id="metodo-pago" onchange="actualizarPago()">
+                  <option value="efectivo">Efectivo</option>
+                  <option value="tarjeta">Tarjeta</option>
+                  <option value="transferencia">Transferencia</option>
+                </select>
+              </div>
+              <div class="form-group" id="grupo-monto-recibido" style="margin-bottom:16px">
+                <label for="monto-recibido">Monto recibido</label>
+                <input type="number" id="monto-recibido" min="0" step="any" placeholder="Ej: 50000" oninput="actualizarPago()" />
+                <div class="text-sm text-muted" id="vista-cambio" aria-live="polite"></div>
+              </div>
+
               <div id="cart-items">
                 <div class="cart-empty">
                   <div style="font-size:32px;margin-bottom:8px">🛍️</div>
@@ -150,21 +164,34 @@
 requireAuth();
 buildSidebar('ventas');
 
-// ── Estado del carrito ────────────────────────────────────
-let carrito = []; // [{ productoId, nombre, qty, precioUnit, stockMax }]
+let productos = [];
+let carrito = [];
+
+function mensajeError(e) {
+  return String(e?.message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+}
+
+async function cargarProductos() {
+  try {
+    productos = await window.api.listarProductos();
+  } catch (e) {
+    showToast(mensajeError(e), 'error');
+    console.error(e);
+    productos = [];
+  }
+}
 
 function showTab(tab) {
-  document.getElementById('panel-nueva').style.display    = tab === 'nueva'     ? '' : 'none';
+  document.getElementById('panel-nueva').style.display = tab === 'nueva' ? '' : 'none';
   document.getElementById('panel-historial').style.display = tab === 'historial' ? '' : 'none';
-  document.getElementById('tab-nueva').className = tab === 'nueva'     ? 'btn btn-primary' : 'btn btn-ghost';
-  document.getElementById('tab-hist').className  = tab === 'historial' ? 'btn btn-primary' : 'btn btn-ghost';
+  document.getElementById('tab-nueva').className = tab === 'nueva' ? 'btn btn-primary' : 'btn btn-ghost';
+  document.getElementById('tab-hist').className = tab === 'historial' ? 'btn btn-primary' : 'btn btn-ghost';
   if (tab === 'historial') renderHistorial();
 }
 
-// ── Catálogo de selección ─────────────────────────────────
 function renderCatalogo() {
-  const q     = document.getElementById('search-prod').value.toLowerCase();
-  let prods   = getProductos().filter(p => p.stock > 0);
+  const q = document.getElementById('search-prod').value.toLowerCase();
+  let prods = productos.filter(p => Number(p.stock) > 0);
   if (q) prods = prods.filter(p => p.nombre.toLowerCase().includes(q));
 
   const tbody = document.getElementById('tbody-catalogo');
@@ -174,47 +201,39 @@ function renderCatalogo() {
   }
 
   tbody.innerHTML = prods.map(p => {
-    const enCarrito = carrito.find(c => c.productoId === p.id);
+    const id = Number(p.id);
+    const enCarrito = carrito.find(c => c.productoId === id);
     return `
     <tr>
-      <td>
-        <div class="fw-600">${p.nombre}</div>
-        <div class="text-sm"><span class="badge badge-gray">${p.categoria}</span></div>
-      </td>
-      <td class="fw-600">${formatPeso(p.precio)}</td>
-      <td>
-        <span class="${p.stock <= p.stockMin ? 'text-sm' : ''}"
-              style="color:${p.stock <= p.stockMin ? 'var(--warning)' : 'inherit'}">
-          ${p.stock} uds
-        </span>
-      </td>
-      <td>
-        ${enCarrito
-          ? `<button class="btn btn-danger btn-sm" onclick="quitarDelCarrito(${p.id})">✕ Quitar</button>`
-          : `<button class="btn btn-primary btn-sm" onclick="agregarAlCarrito(${p.id})">＋ Añadir</button>`}
-      </td>
+      <td><div class="fw-600">${escapeHtml(p.nombre)}</div>
+          <div class="text-sm"><span class="badge badge-gray">${escapeHtml(p.categoria)}</span></div></td>
+      <td class="fw-600">${formatPeso(Number(p.precio))}</td>
+      <td><span class="${p.stock <= p.stockMin ? 'text-sm' : ''}" style="color:${p.stock <= p.stockMin ? 'var(--warning)' : 'inherit'}">${Number(p.stock)} uds</span></td>
+      <td>${enCarrito
+        ? `<button class="btn btn-danger btn-sm" onclick="quitarDelCarrito(${id})">✕ Quitar</button>`
+        : `<button class="btn btn-primary btn-sm" onclick="agregarAlCarrito(${id})">＋ Añadir</button>`}</td>
     </tr>`;
   }).join('');
 }
 
 function agregarAlCarrito(id) {
-  const p = getProductos().find(x => x.id === id);
+  const p = productos.find(x => Number(x.id) === Number(id));
   if (!p) return;
-  if (!carrito.find(c => c.productoId === id)) {
-    carrito.push({ productoId: p.id, nombre: p.nombre, qty: 1, precioUnit: p.precio, stockMax: p.stock });
+  if (!carrito.find(c => c.productoId === Number(id))) {
+    carrito.push({ productoId: Number(p.id), nombre: p.nombre, qty: 1, precioUnit: Number(p.precio), stockMax: Number(p.stock) });
   }
   renderCarrito();
   renderCatalogo();
 }
 
 function quitarDelCarrito(id) {
-  carrito = carrito.filter(c => c.productoId !== id);
+  carrito = carrito.filter(c => c.productoId !== Number(id));
   renderCarrito();
   renderCatalogo();
 }
 
 function cambiarQty(id, delta) {
-  const item = carrito.find(c => c.productoId === id);
+  const item = carrito.find(c => c.productoId === Number(id));
   if (!item) return;
   item.qty = Math.max(1, Math.min(item.stockMax, item.qty + delta));
   renderCarrito();
@@ -223,106 +242,125 @@ function cambiarQty(id, delta) {
 function limpiarCarrito() {
   carrito = [];
   document.getElementById('cliente-nombre').value = '';
+  document.getElementById('monto-recibido').value = '';
   renderCarrito();
   renderCatalogo();
+  actualizarPago();
 }
 
 function renderCarrito() {
   const el = document.getElementById('cart-items');
-
   if (!carrito.length) {
-    el.innerHTML = `<div class="cart-empty">
-      <div style="font-size:32px;margin-bottom:8px">🛍️</div>
-      <p style="font-size:13px;color:var(--gray-400)">Agrega productos al carrito</p>
-    </div>`;
+    el.innerHTML = '<div class="cart-empty"><div style="font-size:32px;margin-bottom:8px">🛍️</div><p style="font-size:13px;color:var(--gray-400)">Agrega productos al carrito</p></div>';
     document.getElementById('cart-total').textContent = '$ 0';
+    actualizarPago();
     return;
   }
 
   el.innerHTML = carrito.map(item => `
     <div class="cart-item">
-      <div class="cart-item-info">
-        <div class="cart-item-name">${item.nombre}</div>
-        <div class="cart-item-price">${formatPeso(item.precioUnit)} c/u</div>
-      </div>
-      <div class="qty-ctrl">
-        <button class="qty-btn" onclick="cambiarQty(${item.productoId}, -1)">−</button>
-        <span class="qty-val">${item.qty}</span>
-        <button class="qty-btn" onclick="cambiarQty(${item.productoId}, +1)">＋</button>
-      </div>
-      <div style="min-width:80px;text-align:right;font-weight:600;font-size:13.5px">
-        ${formatPeso(item.precioUnit * item.qty)}
-      </div>
-    </div>
-  `).join('');
+      <div class="cart-item-info"><div class="cart-item-name">${escapeHtml(item.nombre)}</div>
+        <div class="cart-item-price">${formatPeso(item.precioUnit)} c/u</div></div>
+      <div class="qty-ctrl"><button class="qty-btn" onclick="cambiarQty(${item.productoId}, -1)">−</button>
+        <span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="cambiarQty(${item.productoId}, 1)">＋</button></div>
+      <div style="min-width:80px;text-align:right;font-weight:600;font-size:13.5px">${formatPeso(item.precioUnit * item.qty)}</div>
+    </div>`).join('');
 
   const total = carrito.reduce((s, i) => s + i.precioUnit * i.qty, 0);
   document.getElementById('cart-total').textContent = formatPeso(total);
+  actualizarPago();
 }
 
-function confirmarVenta() {
+function totalEstimado() {
+  return carrito.reduce((s, i) => s + i.precioUnit * i.qty, 0);
+}
+
+function actualizarPago() {
+  const efectivo = document.getElementById('metodo-pago').value === 'efectivo';
+  const grupo = document.getElementById('grupo-monto-recibido');
+  grupo.style.display = efectivo ? '' : 'none';
+  const vista = document.getElementById('vista-cambio');
+  const monto = Number(document.getElementById('monto-recibido').value);
+  if (!efectivo || !Number.isFinite(monto) || document.getElementById('monto-recibido').value === '') {
+    vista.textContent = '';
+    return;
+  }
+  const cambio = monto - totalEstimado();
+  vista.textContent = cambio >= 0
+    ? `Devuelta estimada: ${formatPeso(cambio)}`
+    : `Faltan: ${formatPeso(Math.abs(cambio))}`;
+}
+
+async function confirmarVenta() {
   if (!carrito.length) {
     showToast('Agrega al menos un producto al carrito.', 'warning');
     return;
   }
   const cliente = document.getElementById('cliente-nombre').value.trim() || 'Cliente general';
-  const total   = carrito.reduce((s, i) => s + i.precioUnit * i.qty, 0);
-
-  const venta = registrarVenta({
+  const metodoPago = document.getElementById('metodo-pago').value;
+  const montoRecibido = Number(document.getElementById('monto-recibido').value);
+  const solicitud = {
     cliente,
-    items: carrito.map(c => ({ productoId: c.productoId, nombre: c.nombre, qty: c.qty, precioUnit: c.precioUnit })),
-    total
-  });
+    metodoPago,
+    montoRecibido: metodoPago === 'efectivo' ? montoRecibido : undefined,
+    items: carrito.map(c => ({ productoId: c.productoId, cantidad: c.qty }))
+  };
 
-  // Mostrar modal de éxito
+  let venta;
+  try {
+    venta = await window.api.registrarVenta(solicitud);
+  } catch (e) {
+    showToast(mensajeError(e), 'error');
+    return;
+  }
+
   document.getElementById('exito-msg').textContent =
-    `Venta ${venta.id} registrada para ${cliente}. El stock fue descontado automáticamente.`;
+    `Venta ${venta.numero} registrada para ${venta.cliente}. Método de pago: ${venta.metodoPago}.`;
+  const filas = venta.items.map(item => `
+    <div class="flex gap-2 mb-4"><span style="flex:1">${escapeHtml(item.nombre)}</span>
+      <span class="text-muted">×${Number(item.cantidad)}</span>
+      <span class="fw-600">${formatPeso(Number(item.subtotal))}</span></div>`).join('');
+  const pago = venta.metodoPago === 'efectivo'
+    ? `<div class="flex gap-2"><span style="flex:1">Recibido</span><span>${formatPeso(Number(venta.montoRecibido))}</span></div>
+       <div class="flex gap-2"><span style="flex:1">Devuelta</span><span>${formatPeso(Number(venta.cambio))}</span></div>` : '';
+  document.getElementById('exito-detalle').innerHTML = `${filas}<hr class="divider" />
+    <div class="flex gap-2"><strong style="flex:1">Total</strong><strong style="color:var(--success)">${formatPeso(Number(venta.total))}</strong></div>${pago}`;
 
-  document.getElementById('exito-detalle').innerHTML =
-    carrito.map(c => `
-      <div class="flex gap-2 mb-4">
-        <span style="flex:1">${c.nombre}</span>
-        <span class="text-muted">x${c.qty}</span>
-        <span class="fw-600">${formatPeso(c.precioUnit * c.qty)}</span>
-      </div>
-    `).join('') +
-    `<hr class="divider" />
-     <div class="flex gap-2">
-       <strong style="flex:1">Total</strong>
-       <strong style="color:var(--success)">${formatPeso(total)}</strong>
-     </div>`;
-
-  openModal('modal-exito');
   limpiarCarrito();
+  await cargarProductos();
+  renderCatalogo();
+  buildSidebar('ventas');
+  openModal('modal-exito');
 }
 
-// ── Historial ─────────────────────────────────────────────
-function renderHistorial() {
-  const ventas = getVentas().slice().reverse();
-  document.getElementById('total-ventas-badge').textContent = `${ventas.length} ventas`;
+async function renderHistorial() {
   const tbody = document.getElementById('tbody-historial');
-
+  let ventas;
+  try {
+    ventas = await window.api.listarVentas();
+  } catch (e) {
+    showToast(mensajeError(e), 'error');
+    return;
+  }
+  document.getElementById('total-ventas-badge').textContent = `${ventas.length} ventas`;
   if (!ventas.length) {
     tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🛒</div><p>Aún no hay ventas registradas</p></div></td></tr>';
     return;
   }
-
   tbody.innerHTML = ventas.map(v => `
-    <tr>
-      <td><span class="fw-600">${v.id}</span></td>
-      <td>${v.cliente}</td>
-      <td>
-        ${v.items.map(i => `<div class="text-sm">${i.nombre} <span class="text-muted">×${i.qty}</span></div>`).join('')}
-      </td>
-      <td class="text-muted text-sm">${formatFecha(v.fecha)}</td>
-      <td class="fw-600" style="color:var(--success)">${formatPeso(v.total)}</td>
-      <td><span class="badge badge-success">✓ ${v.estado}</span></td>
-    </tr>
-  `).join('');
+    <tr><td><span class="fw-600">${escapeHtml(v.numero)}</span></td>
+      <td>${escapeHtml(v.cliente)}</td>
+      <td>${v.items.map(i => `<div class="text-sm">${escapeHtml(i.nombre)} <span class="text-muted">×${Number(i.cantidad)}</span></div>`).join('')}</td>
+      <td class="text-muted text-sm">${escapeHtml(formatFecha(v.fecha))}</td>
+      <td class="fw-600" style="color:var(--success)">${formatPeso(Number(v.total))}</td>
+      <td><span class="badge badge-success">✓ ${escapeHtml(v.estado)}</span></td></tr>`).join('');
 }
 
-// Inicializar
-renderCatalogo();
+(async () => {
+  await cargarProductos();
+  renderCatalogo();
+  renderCarrito();
+})();
 </script>
 </body>
 </html>

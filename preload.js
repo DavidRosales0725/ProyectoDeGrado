@@ -7,4 +7,6 @@ contextBridge.exposeInMainWorld('api', {
   eliminarProducto: (id) => ipcRenderer.invoke('productos:eliminar', id),
   contarStockBajo: () => ipcRenderer.invoke('productos:stockBajo'),
   ajustarStock: (d) => ipcRenderer.invoke('inventario:ajustar', d),
+  registrarVenta: (datos) => ipcRenderer.invoke('ventas:registrar', datos),
+  listarVentas: () => ipcRenderer.invoke('ventas:listar'),
 });

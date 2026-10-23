@@ -5,6 +5,8 @@ const { app } = require('electron');
 
 const db = new DatabaseSync(path.join(app.getPath('userData'), 'tienda.db'));
 
+db.exec('PRAGMA foreign_keys = ON;');
+
 db.exec(`
   PRAGMA journal_mode = WAL;
 
@@ -32,6 +34,8 @@ db.exec(`
     fecha TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
   );
 `);
+
+require('./ventas').crearTablasVentas(db);
 
 // SOLO DESARROLLO: datos de demostración si la tabla está vacía (luego lo quitamos)
 const { n } = db.prepare('SELECT COUNT(*) AS n FROM productos').get();

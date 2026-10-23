@@ -20,6 +20,7 @@ app.whenReady().then(() => {
   db = require("./database");
   require("./productos")(ipcMain, db);
   require("./inventario")(ipcMain, db);
+  require("./ventas")(ipcMain, db);
   crearVentana();
 });
 
