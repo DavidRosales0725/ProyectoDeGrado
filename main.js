@@ -1,5 +1,5 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
-const path = require('path');
+const { app, BrowserWindow, ipcMain } = require("electron");
+const path = require("path");
 
 let db;
 
@@ -8,20 +8,21 @@ function crearVentana() {
     width: 1200,
     height: 800,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
-      nodeIntegration: false
-    }
+      nodeIntegration: false,
+    },
   });
-  win.loadFile('index.html'); // tu línea actual
+  win.loadFile("index.html"); // tu línea actual
 }
 
 app.whenReady().then(() => {
-  db = require('./database');
-  require('./productos')(ipcMain, db);
+  db = require("./database");
+  require("./productos")(ipcMain, db);
+  require("./inventario")(ipcMain, db);
   crearVentana();
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
 });

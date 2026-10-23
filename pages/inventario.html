@@ -1,133 +1,180 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Inventario — TiendaApp SENA</title>
-  <link rel="stylesheet" href="../css/styles.css" />
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Inventario — TiendaApp SENA</title>
+    <link rel="stylesheet" href="../css/styles.css" />
+  </head>
 
-<div class="app-wrapper">
-  <aside class="sidebar" id="sidebar"></aside>
+  <body>
+    <div class="app-wrapper">
+      <aside class="sidebar" id="sidebar"></aside>
 
-  <div class="main-content">
-    <header class="topbar">
-      <div class="topbar-left">
-        <h1>Inventario</h1>
-        <p id="topbar-date"></p>
-      </div>
-      <div class="topbar-right">
-        <button class="btn btn-primary" onclick="openModal('modal-ajuste')">
-          📥 Ajustar stock
-        </button>
-      </div>
-    </header>
+      <div class="main-content">
+        <header class="topbar">
+          <div class="topbar-left">
+            <h1>Inventario</h1>
+            <p id="topbar-date"></p>
+          </div>
+          <div class="topbar-right">
+            <button class="btn btn-primary" onclick="openModal('modal-ajuste')">
+              📥 Ajustar stock
+            </button>
+          </div>
+        </header>
 
-    <div class="page-body">
-      <div class="proto-banner">
-        🗄️ Vista del inventario actual. Puedes ajustar el stock de cualquier producto sin registrar una venta.
-      </div>
+        <div class="page-body">
+          <div class="proto-banner">
+            🗄️ Vista del inventario actual. Puedes ajustar el stock de cualquier
+            producto sin registrar una venta; cada ajuste queda guardado en el
+            historial.
+          </div>
+          <!-- Stats -->
+          <div class="stat-grid" id="inv-stats"></div>
 
-      <!-- Stats -->
-      <div class="stat-grid" id="inv-stats"></div>
-
-      <!-- Tabla inventario -->
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title">Estado del inventario</span>
-          <div class="flex gap-3">
-            <div class="search-box">
-              <span class="search-icon">🔍</span>
-              <input type="text" id="search" placeholder="Buscar…" oninput="renderInventario()" />
+          <!-- Tabla inventario -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Estado del inventario</span>
+              <div class="flex gap-3">
+                <div class="search-box">
+                  <span class="search-icon">🔍</span>
+                  <input
+                    type="text"
+                    id="search"
+                    placeholder="Buscar…"
+                    oninput="renderInventario()"
+                  />
+                </div>
+                <select
+                  id="filtro-estado"
+                  onchange="renderInventario()"
+                  style="width: 150px"
+                >
+                  <option value="">Todos</option>
+                  <option value="ok">Disponible</option>
+                  <option value="low">Stock bajo</option>
+                  <option value="out">Agotado</option>
+                </select>
+              </div>
             </div>
-            <select id="filtro-estado" onchange="renderInventario()" style="width:150px">
-              <option value="">Todos</option>
-              <option value="ok">Disponible</option>
-              <option value="low">Stock bajo</option>
-              <option value="out">Agotado</option>
-            </select>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Categoría</th>
+                    <th>Stock actual</th>
+                    <th>Stock mínimo</th>
+                    <th>Nivel</th>
+                    <th>Estado</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-inv"></tbody>
+              </table>
+            </div>
           </div>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Producto</th>
-                <th>Categoría</th>
-                <th>Stock actual</th>
-                <th>Stock mínimo</th>
-                <th>Nivel</th>
-                <th>Estado</th>
-                <th>Acción</th>
-              </tr>
-            </thead>
-            <tbody id="tbody-inv"></tbody>
-          </table>
-        </div>
-      </div>
-
-    </div>
-  </div>
-</div>
-
-<!-- Modal Ajustar stock -->
-<div class="modal-overlay" id="modal-ajuste">
-  <div class="modal">
-    <div class="modal-header">
-      <h3>Ajustar stock</h3>
-      <button class="modal-close" onclick="closeModal('modal-ajuste')">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="form-group" style="margin-bottom:18px">
-        <label>Producto</label>
-        <select id="ajuste-prod">
-          <option value="">Seleccionar producto…</option>
-        </select>
-      </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>Tipo de ajuste</label>
-          <select id="ajuste-tipo">
-            <option value="entrada">📥 Entrada (sumar)</option>
-            <option value="salida">📤 Salida (restar)</option>
-            <option value="manual">🔧 Ajuste manual (definir)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Cantidad / Valor</label>
-          <input type="number" id="ajuste-cantidad" placeholder="Ej: 10" min="0" />
-        </div>
-        <div class="form-group full">
-          <label>Motivo</label>
-          <input type="text" id="ajuste-motivo" placeholder="Ej: Recepción de mercancía, devolución…" />
-        </div>
-      </div>
-      <div id="ajuste-preview" style="margin-top:16px;display:none"
-           class="proto-banner" style="background:var(--success-light);border-color:#BBF7D0;color:var(--success)">
       </div>
     </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-ajuste')">Cancelar</button>
-      <button class="btn btn-success" onclick="aplicarAjuste()">Aplicar ajuste</button>
+
+    <!-- Modal Ajustar stock -->
+    <div class="modal-overlay" id="modal-ajuste">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>Ajustar stock</h3>
+          <button class="modal-close" onclick="closeModal('modal-ajuste')">
+            ✕
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group" style="margin-bottom: 18px">
+            <label>Producto</label>
+            <select id="ajuste-prod">
+              <option value="">Seleccionar producto…</option>
+            </select>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Tipo de ajuste</label>
+              <select id="ajuste-tipo">
+                <option value="entrada">📥 Entrada (sumar)</option>
+                <option value="salida">📤 Salida (restar)</option>
+                <option value="manual">🔧 Ajuste manual (definir)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Cantidad / Valor</label>
+              <input
+                type="number"
+                id="ajuste-cantidad"
+                placeholder="Ej: 10"
+                min="0"
+              />
+            </div>
+            <div class="form-group full">
+              <label>Motivo</label>
+              <input
+                type="text"
+                id="ajuste-motivo"
+                placeholder="Ej: Recepción de mercancía, devolución…"
+              />
+            </div>
+          </div>
+          <div
+            id="ajuste-preview"
+            class="proto-banner"
+            style="
+              margin-top: 16px;
+              display: none;
+              background: var(--success-light);
+              border-color: #bbf7d0;
+              color: var(--success);
+            "
+          ></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="closeModal('modal-ajuste')">
+            Cancelar
+          </button>
+          <button class="btn btn-success" onclick="aplicarAjuste()">
+            Aplicar ajuste
+          </button>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
 
-<div id="toast-container"></div>
+    <div id="toast-container"></div>
 
-<script src="../js/store.js"></script>
-<script src="../js/ui.js"></script>
-<script>
+    <script src="../js/store.js"></script>
+    <script src="../js/ui.js"></script>
+    <script>
 requireAuth();
 buildSidebar('inventario');
 
+let productos = [];
+
+function mensajeError(e) {
+  return String(e?.message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+}
+
+async function cargarProductos() {
+  try {
+    productos = await window.api.listarProductos();
+  } catch (e) {
+    showToast('No se pudo cargar el inventario.', 'error');
+    console.error(e);
+    productos = [];
+  }
+}
+
 function renderStats() {
-  const prods = getProductos();
-  const ok    = prods.filter(p => p.stock > p.stockMin).length;
-  const low   = prods.filter(p => p.stock > 0 && p.stock <= p.stockMin).length;
-  const out   = prods.filter(p => p.stock === 0).length;
-  const total = prods.reduce((s, p) => s + p.stock, 0);
+  const ok    = productos.filter(p => p.stock > p.stockMin).length;
+  const low   = productos.filter(p => p.stock > 0 && p.stock <= p.stockMin).length;
+  const out   = productos.filter(p => p.stock === 0).length;
+  const total = productos.reduce((s, p) => s + p.stock, 0);
 
   document.getElementById('inv-stats').innerHTML = `
     <div class="stat-card blue">
@@ -168,7 +215,7 @@ function renderStats() {
 function renderInventario() {
   const q      = document.getElementById('search').value.toLowerCase();
   const estado = document.getElementById('filtro-estado').value;
-  let prods    = getProductos();
+  let prods    = productos;
 
   if (q) prods = prods.filter(p => p.nombre.toLowerCase().includes(q));
   if (estado === 'ok')  prods = prods.filter(p => p.stock > p.stockMin);
@@ -182,7 +229,6 @@ function renderInventario() {
   }
 
   tbody.innerHTML = prods.map(p => {
-    const total  = p.stock + p.stockMin;
     const pct    = Math.min(Math.round((p.stock / (p.stockMin * 2 || 1)) * 100), 100);
     const isOk   = p.stock > p.stockMin;
     const isLow  = p.stock > 0 && p.stock <= p.stockMin;
@@ -194,17 +240,17 @@ function renderInventario() {
     return `
     <tr>
       <td>
-        <div class="fw-600">${p.nombre}</div>
-        <div class="text-sm text-muted">${p.descripcion || '—'}</div>
+        <div class="fw-600">${escapeHtml(p.nombre)}</div>
+        <div class="text-sm text-muted">${escapeHtml(p.descripcion) || '—'}</div>
       </td>
-      <td><span class="badge badge-gray">${p.categoria}</span></td>
+      <td><span class="badge badge-gray">${escapeHtml(p.categoria)}</span></td>
       <td>
-        <span class="fw-600" style="font-size:16px;color:${isOut ? 'var(--danger)' : isLow ? 'var(--warning)' : 'var(--success)'}">
-          ${p.stock}
+        <span class="fw-600" style="font-size:16px;color:${isOut ? "var(--danger)" : isLow ? "var(--warning)" : "var(--success)"}">
+          ${Number(p.stock)}
         </span>
         <span class="text-muted text-sm"> uds</span>
       </td>
-      <td class="text-muted">${p.stockMin} uds</td>
+      <td class="text-muted">${Number(p.stockMin)} uds</td>
       <td style="min-width:140px">
         <div class="stock-bar">
           <div class="bar-track">
@@ -215,82 +261,97 @@ function renderInventario() {
       </td>
       <td>${bdg}</td>
       <td>
-        <button class="btn btn-ghost btn-sm" onclick="abrirAjuste(${p.id})">📥 Ajustar</button>
+        <button class="btn btn-ghost btn-sm" onclick="abrirAjuste(${Number(p.id)})">📥 Ajustar</button>
       </td>
     </tr>`;
   }).join('');
 }
 
-// ── Llenar select de productos en modal ───────────────────
+// ── Llenar select de productos en el modal ────────────────
 function llenarSelectProductos() {
   const sel = document.getElementById('ajuste-prod');
-  const prods = getProductos();
-  sel.innerHTML = '<option value="">Seleccionar producto…</option>'
-    + prods.map(p => `<option value="${p.id}">${p.nombre} (stock: ${p.stock})</option>`).join('');
+  const prods = productos;
+  sel.replaceChildren(new Option('Seleccionar producto…', ''));
+  prods.forEach(p => sel.add(new Option(`${p.nombre} (stock: ${p.stock})`, p.id)));
 }
 
 function abrirAjuste(id) {
   llenarSelectProductos();
   if (id) document.getElementById('ajuste-prod').value = id;
+  previewAjuste();
   openModal('modal-ajuste');
 }
 
 document.querySelector('[onclick="openModal(\'modal-ajuste\')"]')
   .addEventListener('click', llenarSelectProductos);
 
-// ── Vista previa del ajuste ──────────────────────────────
-['ajuste-prod','ajuste-tipo','ajuste-cantidad'].forEach(el =>
+// ── Vista previa del ajuste ───────────────────────────────
+['ajuste-prod', 'ajuste-tipo', 'ajuste-cantidad'].forEach(el =>
   document.getElementById(el).addEventListener('input', previewAjuste)
 );
 
-function previewAjuste() {
-  const prodId    = parseInt(document.getElementById('ajuste-prod').value);
-  const tipo      = document.getElementById('ajuste-tipo').value;
-  const cantidad  = parseInt(document.getElementById('ajuste-cantidad').value) || 0;
-  const preview   = document.getElementById('ajuste-preview');
-
-  if (!prodId || !cantidad) { preview.style.display = 'none'; return; }
-
-  const p = getProductos().find(x => x.id === prodId);
-  if (!p) return;
-
-  let nuevo = p.stock;
-  if (tipo === 'entrada')  nuevo = p.stock + cantidad;
-  if (tipo === 'salida')   nuevo = Math.max(0, p.stock - cantidad);
-  if (tipo === 'manual')   nuevo = cantidad;
-
-  preview.style.display = 'flex';
-  preview.textContent = `📊 ${p.nombre}: ${p.stock} → ${nuevo} unidades`;
+function calcularNuevo(p, tipo, cantidad) {
+  if (tipo === 'entrada') return p.stock + cantidad;
+  if (tipo === 'salida')  return p.stock - cantidad;
+  return cantidad; // manual
 }
 
-function aplicarAjuste() {
+function previewAjuste() {
   const prodId   = parseInt(document.getElementById('ajuste-prod').value);
   const tipo     = document.getElementById('ajuste-tipo').value;
   const cantidad = parseInt(document.getElementById('ajuste-cantidad').value);
+  const preview  = document.getElementById('ajuste-preview');
+
+  if (!prodId || isNaN(cantidad)) { preview.style.display = 'none'; return; }
+
+  const p = productos.find(x => x.id === prodId);
+  if (!p) { preview.style.display = 'none'; return; }
+
+  const nuevo = calcularNuevo(p, tipo, cantidad);
+  preview.style.display = 'flex';
+  preview.textContent = nuevo < 0
+    ? `⚠️ No hay suficiente stock: solo hay ${p.stock} unidades`
+    : `📊 ${p.nombre}: ${p.stock} → ${nuevo} unidades`;
+}
+
+async function aplicarAjuste() {
+  const prodId   = parseInt(document.getElementById('ajuste-prod').value);
+  const tipo     = document.getElementById('ajuste-tipo').value;
+  const cantidad = parseInt(document.getElementById('ajuste-cantidad').value);
+  const motivo   = document.getElementById('ajuste-motivo').value.trim();
 
   if (!prodId || isNaN(cantidad)) {
     showToast('Selecciona un producto y una cantidad válida.', 'warning');
     return;
   }
 
-  const p = getProductos().find(x => x.id === prodId);
-  let nuevo = p.stock;
-  if (tipo === 'entrada')  nuevo = p.stock + cantidad;
-  if (tipo === 'salida')   nuevo = Math.max(0, p.stock - cantidad);
-  if (tipo === 'manual')   nuevo = cantidad;
+  const p = productos.find(x => x.id === prodId);
 
-  actualizarProducto(prodId, { stock: nuevo });
-  showToast(`Stock de "${p.nombre}" actualizado a ${nuevo} uds.`, 'success');
+  try {
+    const r = await window.api.ajustarStock({ productoId: prodId, tipo, cantidad, motivo });
+    showToast(`Stock de "${p?.nombre ?? 'producto'}" actualizado a ${r.stockNuevo} uds.`, 'success');
+  } catch (e) {
+    showToast(mensajeError(e), 'error');
+    return; // deja el modal abierto para corregir
+  }
+
   closeModal('modal-ajuste');
   document.getElementById('ajuste-prod').value     = '';
   document.getElementById('ajuste-cantidad').value = '';
+  document.getElementById('ajuste-motivo').value   = '';
   document.getElementById('ajuste-preview').style.display = 'none';
+
+  await cargarProductos();
   renderStats();
   renderInventario();
+  buildSidebar('inventario'); // actualiza la insignia de stock bajo
 }
 
-renderStats();
-renderInventario();
-</script>
-</body>
+(async () => {
+  await cargarProductos();
+  renderStats();
+  renderInventario();
+})();
+    </script>
+  </body>
 </html>
