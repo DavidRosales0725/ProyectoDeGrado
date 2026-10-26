@@ -21,6 +21,7 @@ app.whenReady().then(() => {
   require("./productos")(ipcMain, db);
   require("./inventario")(ipcMain, db);
   require("./ventas")(ipcMain, db);
+  require("./dashboard")(ipcMain, db);
   crearVentana();
 });
 

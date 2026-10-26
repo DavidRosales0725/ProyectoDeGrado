@@ -28,7 +28,7 @@
 
       <!-- Banner prototipo -->
       <div class="proto-banner">
-        🧪 <strong>Prototipo académico SENA</strong> — Los datos son simulados con localStorage. No hay backend ni base de datos real.
+        🗄️ <strong>TiendaApp SENA</strong> — Los datos del dashboard se consultan desde la base de datos local SQLite.
       </div>
 
       <!-- Stats -->
@@ -94,8 +94,7 @@ tickClock();
 setInterval(tickClock, 1000);
 
 // ── Stats cards ───────────────────────────────────────────
-function renderStats() {
-  const s = getStats();
+function renderStats(s) {
   const grid = document.getElementById('stat-grid');
   grid.innerHTML = `
     <div class="stat-card blue">
@@ -134,8 +133,7 @@ function renderStats() {
 }
 
 // ── Tabla ventas recientes ────────────────────────────────
-function renderVentasRecientes() {
-  const ventas = getVentas().slice(-5).reverse();
+function renderVentasRecientes(ventas) {
   const tbody  = document.getElementById('tbody-ventas');
   if (!ventas.length) {
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:24px">Sin ventas registradas</td></tr>';
@@ -143,18 +141,17 @@ function renderVentasRecientes() {
   }
   tbody.innerHTML = ventas.map(v => `
     <tr>
-      <td><span class="fw-600">${v.id}</span></td>
-      <td>${v.cliente}</td>
-      <td class="text-muted text-sm">${formatFecha(v.fecha)}</td>
-      <td class="fw-600" style="color:var(--success)">${formatPeso(v.total)}</td>
-      <td><span class="badge badge-success">✓ ${v.estado}</span></td>
+      <td><span class="fw-600">${escapeHtml(v.numero)}</span></td>
+      <td>${escapeHtml(v.cliente)}</td>
+      <td class="text-muted text-sm">${escapeHtml(formatFecha(v.fecha))}</td>
+      <td class="fw-600" style="color:var(--success)">${formatPeso(Number(v.total))}</td>
+      <td><span class="badge badge-success">✓ ${escapeHtml(v.estado)}</span></td>
     </tr>
   `).join('');
 }
 
 // ── Alertas de stock ──────────────────────────────────────
-function renderAlertasStock() {
-  const prods  = getProductos().filter(p => p.stock <= p.stockMin);
+function renderAlertasStock(prods) {
   const el     = document.getElementById('alertas-stock');
 
   if (!prods.length) {
@@ -167,21 +164,21 @@ function renderAlertasStock() {
   }
 
   el.innerHTML = prods.map(p => {
-    const pct  = Math.round((p.stock / p.stockMin) * 100);
+    const pct  = p.stockMin > 0 ? Math.round((p.stock / p.stockMin) * 100) : 0;
     const cls  = p.stock === 0 ? 'low' : 'medium';
     const lbl  = p.stock === 0 ? 'Agotado' : 'Stock bajo';
     const badgeCls = p.stock === 0 ? 'badge-danger' : 'badge-warning';
     return `
     <div style="padding:12px 0;border-bottom:1px solid var(--gray-100);">
       <div class="flex items-center gap-2 mb-4">
-        <span class="fw-600" style="font-size:13.5px;flex:1">${p.nombre}</span>
+        <span class="fw-600" style="font-size:13.5px;flex:1">${escapeHtml(p.nombre)}</span>
         <span class="badge ${badgeCls}">${lbl}</span>
       </div>
       <div class="stock-bar">
         <div class="bar-track">
           <div class="bar-fill ${cls}" style="width:${Math.min(pct,100)}%"></div>
         </div>
-        <span class="text-sm text-muted">${p.stock} / ${p.stockMin} mín</span>
+        <span class="text-sm text-muted">${Number(p.stock)} / ${Number(p.stockMin)} mín</span>
       </div>
     </div>`;
   }).join('') + `
@@ -190,9 +187,19 @@ function renderAlertasStock() {
     </a>`;
 }
 
-renderStats();
-renderVentasRecientes();
-renderAlertasStock();
+async function cargarDashboard() {
+  try {
+    const resumen = await window.api.obtenerResumen();
+    renderStats(resumen);
+    renderVentasRecientes(resumen.ultimasVentas);
+    renderAlertasStock(resumen.productosStockBajo);
+  } catch (e) {
+    console.error(e);
+    showToast('No se pudo cargar el resumen del dashboard.', 'error');
+  }
+}
+
+cargarDashboard();
 </script>
 </body>
 </html>
