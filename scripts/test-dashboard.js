@@ -54,9 +54,9 @@ conBase(db => {
   const resumen = calcularResumen(db, new Date('2026-01-16T12:00:00.000Z'));
   assert.equal(resumen.totalProductos, 3);
   assert.equal(resumen.stockBajo, 2);
-  assert.equal(resumen.totalVentas, 4);
+  assert.equal(resumen.totalVentas, 3);
   assert.equal(resumen.ingresoTotal, 150);
-  assert.equal(resumen.ventasHoy, 2);
+  assert.equal(resumen.ventasHoy, 1);
   assert.equal(resumen.ingresoHoy, 30);
   assert.equal(resumen.ultimasVentas.length, 4);
   assert.equal(resumen.ultimasVentas[0].metodoPago, 'transferencia');
@@ -73,13 +73,15 @@ conBase(db => {
   // A la 01:30 del 16 en Bogotá, la venta de la 01:00 pertenece a hoy,
   // mientras que la de las 22:00 del día anterior ya no.
   const resumenMadrugada = calcularResumen(db, new Date('2026-01-16T06:30:00.000Z'));
-  assert.equal(resumenMadrugada.ventasHoy, 2);
+  assert.equal(resumenMadrugada.ventasHoy, 1);
   assert.equal(resumenMadrugada.ingresoHoy, 30);
   console.log('✅ límites del día local de Bogotá (22:00 y 01:00)');
 });
 
 conBase(db => {
   const resumen = calcularResumen(db, new Date('2026-01-16T12:00:00.000Z'));
+  assert.equal(resumen.totalVentas, 3);
+  assert.equal(resumen.ventasHoy, 1);
   assert.equal(resumen.ingresoTotal, 150);
   assert.equal(resumen.ingresoHoy, 30);
   console.log('✅ ventas no completadas excluidas de los ingresos');
