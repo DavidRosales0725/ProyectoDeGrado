@@ -81,6 +81,10 @@
           <label>Nombre del producto *</label>
           <input type="text" id="prod-nombre" placeholder="Ej: Camisa manga larga" />
         </div>
+        <div class="form-group full">
+          <label for="prod-codigo-barras">Código de barras (opcional)</label>
+          <input type="text" id="prod-codigo-barras" placeholder="Ej: 7701234567890" maxlength="48" autocomplete="off" />
+        </div>
         <div class="form-group">
           <label>Categoría *</label>
           <select id="prod-categoria">
@@ -93,15 +97,15 @@
         </div>
         <div class="form-group">
           <label>Precio (COP) *</label>
-          <input type="number" id="prod-precio" placeholder="Ej: 45000" min="0" />
+          <input type="number" id="prod-precio" placeholder="Ej: 45000" min="0" max="100000000" />
         </div>
         <div class="form-group">
           <label>Stock inicial *</label>
-          <input type="number" id="prod-stock" placeholder="Ej: 20" min="0" />
+          <input type="number" id="prod-stock" placeholder="Ej: 20" min="0" max="1000000" />
         </div>
         <div class="form-group">
           <label>Stock mínimo</label>
-          <input type="number" id="prod-stockmin" placeholder="Ej: 5" min="0" value="5" />
+          <input type="number" id="prod-stockmin" placeholder="Ej: 5" min="0" max="1000000" value="5" />
         </div>
         <div class="form-group full">
           <label>Descripción</label>
@@ -146,7 +150,7 @@ function renderTabla() {
   const cat = document.getElementById('filtro-cat').value;
   let prods = productos;
 
-  if (q)   prods = prods.filter(p => p.nombre.toLowerCase().includes(q) || p.descripcion?.toLowerCase().includes(q));
+  if (q)   prods = prods.filter(p => p.nombre.toLowerCase().includes(q) || p.descripcion?.toLowerCase().includes(q) || p.codigoBarras?.toLowerCase().includes(q));
   if (cat) prods = prods.filter(p => p.categoria === cat);
 
   const tbody = document.getElementById('tbody-productos');
@@ -172,6 +176,7 @@ function renderTabla() {
       <td class="text-muted text-sm">${i + 1}</td>
       <td>
         <div class="fw-600">${escapeHtml(p.nombre)}</div>
+        ${p.codigoBarras ? `<div class="text-sm text-muted">Código: ${escapeHtml(p.codigoBarras)}</div>` : ''}
         <div class="text-sm text-muted">${escapeHtml(p.descripcion) || '—'}</div>
       </td>
       <td><span class="badge badge-gray">${escapeHtml(p.categoria)}</span></td>
@@ -192,7 +197,7 @@ function renderTabla() {
 }
 
 function limpiarModal() {
-  ['prod-id','prod-nombre','prod-desc'].forEach(id => document.getElementById(id).value = '');
+  ['prod-id','prod-nombre','prod-desc','prod-codigo-barras'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('prod-categoria').value = '';
   document.getElementById('prod-precio').value    = '';
   document.getElementById('prod-stock').value     = '';
@@ -210,6 +215,7 @@ function editarProducto(id) {
   document.getElementById('prod-stock').value     = p.stock;
   document.getElementById('prod-stockmin').value  = p.stockMin;
   document.getElementById('prod-desc').value      = p.descripcion || '';
+  document.getElementById('prod-codigo-barras').value = p.codigoBarras || '';
   document.getElementById('modal-title').textContent = 'Editar producto';
   openModal('modal-producto');
 }
@@ -222,6 +228,7 @@ async function guardarProducto() {
   const stockMinLeido = parseInt(document.getElementById('prod-stockmin').value);
   const stockMin = isNaN(stockMinLeido) ? 5 : stockMinLeido;
   const desc     = document.getElementById('prod-desc').value.trim();
+  const codigoBarras = document.getElementById('prod-codigo-barras').value.trim();
   const id       = document.getElementById('prod-id').value;
 
   if (!nombre || !cat || isNaN(precio) || isNaN(stock)) {
@@ -229,7 +236,7 @@ async function guardarProducto() {
     return;
   }
 
-  const datos = { nombre, categoria: cat, precio, stock, stockMin, descripcion: desc };
+  const datos = { nombre, categoria: cat, precio, stock, stockMin, descripcion: desc, codigoBarras };
 
   try {
     if (id) {

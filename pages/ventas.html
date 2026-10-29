@@ -32,6 +32,15 @@
 
       <!-- NUEVA VENTA -->
       <div id="panel-nueva">
+        <div class="card mb-4">
+          <div class="card-body">
+            <div class="form-group">
+              <label for="codigo-barras">Escanear código de barras</label>
+              <input type="text" id="codigo-barras" placeholder="Escanea o escribe un código y presiona Enter" autocomplete="off" autofocus />
+              <span class="text-sm text-muted">El lector funciona como teclado. También puedes buscar productos por nombre abajo.</span>
+            </div>
+          </div>
+        </div>
         <div class="venta-layout">
 
           <!-- Productos disponibles -->
@@ -81,7 +90,7 @@
               </div>
               <div class="form-group" id="grupo-monto-recibido" style="margin-bottom:16px">
                 <label for="monto-recibido">Monto recibido</label>
-                <input type="number" id="monto-recibido" min="0" step="any" placeholder="Ej: 50000" oninput="actualizarPago()" />
+                <input type="number" id="monto-recibido" min="0" max="1000000000000" step="any" placeholder="Ej: 50000" oninput="actualizarPago()" />
                 <div class="text-sm text-muted" id="vista-cambio" aria-live="polite"></div>
               </div>
 
@@ -167,6 +176,10 @@ buildSidebar('ventas');
 let productos = [];
 let carrito = [];
 
+function enfocarEscaner() {
+  document.getElementById('codigo-barras')?.focus({ preventScroll: true });
+}
+
 function mensajeError(e) {
   return String(e?.message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 }
@@ -224,6 +237,61 @@ function agregarAlCarrito(id) {
   }
   renderCarrito();
   renderCatalogo();
+}
+
+async function procesarCodigoBarras(event) {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  const campo = event.currentTarget;
+  const codigo = campo.value.trim();
+  if (!codigo) {
+    campo.value = '';
+    enfocarEscaner();
+    return;
+  }
+
+  try {
+    const p = await window.api.buscarProductoPorCodigo(codigo);
+    if (!p) {
+      showToast('Código no registrado', 'warning');
+      return;
+    }
+
+    const productoId = Number(p.id);
+    const stock = Number(p.stock);
+    if (stock <= 0) {
+      showToast(`Stock agotado para "${p.nombre}".`, 'warning');
+      return;
+    }
+
+    const item = carrito.find(c => c.productoId === productoId);
+    if (item && item.qty >= stock) {
+      showToast(`Ya agregaste todas las unidades disponibles de "${p.nombre}" (${stock}).`, 'warning');
+      return;
+    }
+
+    const indice = productos.findIndex(prod => Number(prod.id) === productoId);
+    if (indice >= 0) productos[indice] = p;
+    else productos.push(p);
+
+    if (item) {
+      item.qty += 1;
+      item.stockMax = stock;
+      item.precioUnit = Number(p.precio);
+      item.nombre = p.nombre;
+    } else {
+      carrito.push({ productoId, nombre: p.nombre, qty: 1, precioUnit: Number(p.precio), stockMax: stock });
+    }
+    renderCarrito();
+    renderCatalogo();
+    showToast(`✓ ${p.nombre} agregado al carrito`, 'success');
+  } catch (e) {
+    showToast(mensajeError(e), 'error');
+  } finally {
+    const devolverFoco = document.activeElement === campo;
+    campo.value = '';
+    if (devolverFoco) enfocarEscaner();
+  }
 }
 
 function quitarDelCarrito(id) {
@@ -331,6 +399,7 @@ async function confirmarVenta() {
   renderCatalogo();
   buildSidebar('ventas');
   openModal('modal-exito');
+  enfocarEscaner();
 }
 
 async function renderHistorial() {
@@ -361,6 +430,8 @@ async function renderHistorial() {
   renderCatalogo();
   renderCarrito();
 })();
+
+document.getElementById('codigo-barras').addEventListener('keydown', procesarCodigoBarras);
 </script>
 </body>
 </html>

@@ -9,18 +9,9 @@ db.exec('PRAGMA foreign_keys = ON;');
 
 db.exec(`
   PRAGMA journal_mode = WAL;
-
-  CREATE TABLE IF NOT EXISTS productos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nombre TEXT NOT NULL,
-    categoria TEXT NOT NULL DEFAULT '',
-    precio REAL NOT NULL CHECK (precio >= 0),
-    stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
-    stock_min INTEGER NOT NULL DEFAULT 0 CHECK (stock_min >= 0),
-    descripcion TEXT NOT NULL DEFAULT '',
-    activo INTEGER NOT NULL DEFAULT 1
-  );
 `);
+
+require('./productos').crearTablasProductos(db);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS movimientos_inventario (

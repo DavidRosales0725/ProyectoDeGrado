@@ -1,0 +1,5 @@
+module.exports = {
+  LIMITE_STOCK: 1_000_000,
+  LIMITE_PRECIO: 100_000_000,
+  LIMITE_MONTO: 1_000_000_000_000,
+};

@@ -1,3 +1,5 @@
+const { LIMITE_STOCK, LIMITE_MONTO } = require('./limites');
+
 function crearTablasVentas(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS ventas (
@@ -53,12 +55,15 @@ function normalizarItems(items) {
     if (!Number.isInteger(productoId) || productoId <= 0) {
       throw new Error('Hay un producto inválido en la venta');
     }
-    if (!Number.isInteger(cantidad) || cantidad <= 0) {
+    if (!Number.isSafeInteger(cantidad) || cantidad <= 0) {
       throw new Error('La cantidad de cada producto debe ser un entero mayor a 0');
     }
+    if (cantidad > LIMITE_STOCK) {
+      throw new Error('La cantidad por producto no puede superar 1.000.000 de unidades');
+    }
     const acumulada = (cantidades.get(productoId) ?? 0) + cantidad;
-    if (!Number.isSafeInteger(acumulada)) {
-      throw new Error('La cantidad solicitada es demasiado grande');
+    if (!Number.isSafeInteger(acumulada) || acumulada > LIMITE_STOCK) {
+      throw new Error('La cantidad acumulada por producto no puede superar 1.000.000 de unidades');
     }
     cantidades.set(productoId, acumulada);
   }
@@ -74,7 +79,10 @@ module.exports = function registrarVentas(ipcMain, db) {
 
     const montoSolicitado = Number(datos?.montoRecibido);
     if (metodoPago === 'efectivo' && (!Number.isFinite(montoSolicitado) || montoSolicitado < 0)) {
-      throw new Error('Ingresa un monto recibido válido');
+      throw new Error('Ingresa un monto recibido finito y mayor o igual a 0');
+    }
+    if (metodoPago === 'efectivo' && montoSolicitado > LIMITE_MONTO) {
+      throw new Error('El monto recibido no puede superar $1.000.000.000.000');
     }
 
     db.exec('BEGIN IMMEDIATE');
