@@ -1,22 +1,4 @@
-const ZONA_BOGOTA = "America/Bogota";
-
-function limitesDiaBogota(ahora) {
-  const partes = new Intl.DateTimeFormat("en-CA", {
-    timeZone: ZONA_BOGOTA,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(ahora);
-  const fecha = Object.fromEntries(
-    partes.map(({ type, value }) => [type, value]),
-  );
-  // Bogotá usa UTC-5 sin horario de verano: la medianoche local equivale a 05:00 UTC.
-  const inicio = new Date(
-    Date.UTC(Number(fecha.year), Number(fecha.month) - 1, Number(fecha.day), 5),
-  );
-  const fin = new Date(inicio.getTime() + 24 * 60 * 60 * 1000);
-  return { inicio: inicio.toISOString(), fin: fin.toISOString() };
-}
+const { limitesDiaBogota } = require('./fechas');
 
 function calcularResumen(db, ahora = new Date()) {
   const { inicio, fin } = limitesDiaBogota(

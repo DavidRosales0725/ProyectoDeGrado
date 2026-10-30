@@ -63,6 +63,7 @@ async function buildSidebar(activeKey) {
     { key: 'productos',  href: '../pages/productos.html', icon: '📦', label: 'Productos'   },
     { key: 'inventario', href: '../pages/inventario.html',icon: '🗄️',  label: 'Inventario'  },
     { key: 'ventas',     href: '../pages/ventas.html',    icon: '🛒', label: 'Ventas'      },
+    { key: 'reportes',   href: '../pages/reportes.html',  icon: '📈', label: 'Reportes'    },
   ];
 
   const navHTML = navItems.map(item => `

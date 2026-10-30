@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reportes — TiendaApp SENA</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <style>
+    .reporte-filtros { display:flex; flex-wrap:wrap; align-items:end; gap:10px; }
+    .reporte-fecha { min-width:150px; }
+    .reporte-fecha label { display:block; margin-bottom:6px; font-size:12px; color:var(--gray-500); }
+    .reporte-resumen { display:grid; grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); gap:16px; margin:20px 0; }
+    .reporte-grafico { display:flex; align-items:end; gap:8px; min-height:210px; overflow-x:auto; padding:20px 8px 8px; }
+    .grafico-dia { flex:1 0 42px; min-width:42px; display:flex; flex-direction:column; justify-content:end; align-items:center; gap:6px; height:190px; cursor:pointer; border:0; background:none; color:var(--gray-600); }
+    .grafico-barra { width:min(34px,80%); min-height:3px; border-radius:5px 5px 0 0; background:var(--primary); transition:filter .15s; }
+    .grafico-dia:hover .grafico-barra { filter:brightness(.85); }
+    .grafico-dia small { white-space:nowrap; font-size:10px; }
+    .fila-dia { cursor:pointer; }
+    .fila-dia:hover { background:var(--gray-50); }
+    @media(max-width:700px) { .reporte-resumen { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  </style>
+</head>
+<body>
+<div class="app-wrapper">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-left"><h1>Reportes</h1><p id="topbar-date"></p></div>
+    </header>
+    <div class="page-body">
+      <div class="proto-banner">📈 Ventas completadas agrupadas por día local de Colombia.</div>
+      <section class="card">
+        <div class="card-body">
+          <div class="reporte-filtros" aria-label="Filtros de fecha">
+            <button class="btn btn-ghost btn-sm" type="button" onclick="aplicarRapido('hoy')">Hoy</button>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="aplicarRapido('ayer')">Ayer</button>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="aplicarRapido('7')">Últimos 7 días</button>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="aplicarRapido('30')">Últimos 30 días</button>
+            <div class="reporte-fecha"><label for="fecha-desde">Desde</label><input type="date" id="fecha-desde" /></div>
+            <div class="reporte-fecha"><label for="fecha-hasta">Hasta</label><input type="date" id="fecha-hasta" /></div>
+            <button class="btn btn-primary" type="button" id="btn-generar">Generar reporte</button>
+          </div>
+        </div>
+      </section>
+
+      <div id="reporte-resumen" class="reporte-resumen"></div>
+      <section class="card mb-4">
+        <div class="card-header"><span class="card-title">📊 Ingresos por día</span></div>
+        <div class="card-body"><div id="grafico-ventas" class="reporte-grafico" aria-label="Gráfico de ingresos diarios"></div></div>
+      </section>
+      <section class="card">
+        <div class="card-header"><span class="card-title">📅 Detalle diario</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Día</th><th>Ventas</th><th>Total</th><th>Efectivo</th><th>Tarjeta</th><th>Transferencia</th></tr></thead>
+            <tbody id="tbody-reporte"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="modal-ventas-dia" role="dialog" aria-modal="true" aria-labelledby="titulo-ventas-dia">
+  <section class="modal">
+    <div class="modal-header"><h3 id="titulo-ventas-dia">Ventas del día</h3><button class="modal-close" type="button" aria-label="Cerrar" onclick="cerrarVentasDia()">✕</button></div>
+    <div class="modal-body" id="contenido-ventas-dia"></div>
+    <div class="modal-footer"><button class="btn btn-ghost" type="button" onclick="cerrarVentasDia()">Cerrar</button></div>
+  </section>
+</div>
+<div id="toast-container"></div>
+<script src="../js/store.js"></script>
+<script src="../js/ui.js"></script>
+<script>
+requireAuth();
+buildSidebar('reportes');
+
+const BOGOTA = 'America/Bogota';
+let reporteActual = null;
+
+function fechaHoyBogota() {
+  const partes = new Intl.DateTimeFormat('en-CA', { timeZone: BOGOTA, year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(new Date());
+  const v = Object.fromEntries(partes.map(p => [p.type, p.value]));
+  return `${v.year}-${v.month}-${v.day}`;
+}
+
+function moverFecha(fecha, dias) {
+  const d = new Date(`${fecha}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+function nombreDia(fecha) {
+  const d = new Date(`${fecha}T12:00:00Z`);
+  return d.toLocaleDateString('es-CO', { timeZone: 'UTC', weekday:'long', day:'2-digit', month:'short', year:'numeric' });
+}
+
+function mensajeError(error) {
+  return String(error?.message ?? error).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+}
+
+function establecerRango(desde, hasta) {
+  document.getElementById('fecha-desde').value = desde;
+  document.getElementById('fecha-hasta').value = hasta;
+  cargarReporte();
+}
+
+function aplicarRapido(tipo) {
+  const hoy = fechaHoyBogota();
+  if (tipo === 'hoy') return establecerRango(hoy, hoy);
+  if (tipo === 'ayer') {
+    const ayer = moverFecha(hoy, -1);
+    return establecerRango(ayer, ayer);
+  }
+  const dias = Number(tipo);
+  establecerRango(moverFecha(hoy, -(dias - 1)), hoy);
+}
+
+function renderResumen(resumen) {
+  const mejor = resumen.mejorDia
+    ? `${escapeHtml(nombreDia(resumen.mejorDia.fecha))}<br>${formatPeso(Number(resumen.mejorDia.ingresoTotal))}`
+    : 'Sin ventas';
+  document.getElementById('reporte-resumen').innerHTML = `
+    <div class="stat-card green"><div class="stat-icon">💰</div><div><div class="stat-label">Ingresos del rango</div><div class="stat-value" style="font-size:20px">${formatPeso(Number(resumen.ingresoTotal))}</div></div></div>
+    <div class="stat-card blue"><div class="stat-icon">🛒</div><div><div class="stat-label">Ventas completadas</div><div class="stat-value">${Number(resumen.cantidadVentas)}</div></div></div>
+    <div class="stat-card blue"><div class="stat-icon">📊</div><div><div class="stat-label">Promedio diario</div><div class="stat-value" style="font-size:20px">${formatPeso(Number(resumen.promedioPorDia))}</div></div></div>
+    <div class="stat-card"><div class="stat-icon">🏆</div><div><div class="stat-label">Mejor día</div><div class="stat-sub">${mejor}</div></div></div>`;
+}
+
+function renderDias(dias) {
+  const maximo = Math.max(...dias.map(d => Number(d.ingresoTotal)), 0);
+  document.getElementById('tbody-reporte').innerHTML = dias.map(dia => `
+    <tr class="fila-dia" tabindex="0" role="button" data-fecha="${escapeHtml(dia.fecha)}" aria-label="Ver ventas del ${escapeHtml(nombreDia(dia.fecha))}">
+      <td><strong>${escapeHtml(nombreDia(dia.fecha))}</strong></td><td>${Number(dia.cantidadVentas)}</td>
+      <td class="fw-600">${formatPeso(Number(dia.ingresoTotal))}</td><td>${formatPeso(Number(dia.efectivo))}</td>
+      <td>${formatPeso(Number(dia.tarjeta))}</td><td>${formatPeso(Number(dia.transferencia))}</td>
+    </tr>`).join('');
+  document.getElementById('grafico-ventas').innerHTML = dias.map(dia => {
+    const altura = maximo > 0 ? Math.max(3, Number(dia.ingresoTotal) / maximo * 145) : 3;
+    return `<button class="grafico-dia" type="button" data-fecha="${escapeHtml(dia.fecha)}" title="${escapeHtml(nombreDia(dia.fecha))}: ${escapeHtml(formatPeso(Number(dia.ingresoTotal)))}">
+      <span class="grafico-barra" style="height:${altura}px"></span><small>${escapeHtml(dia.fecha.slice(8))}</small></button>`;
+  }).join('');
+}
+
+async function cargarReporte() {
+  const desde = document.getElementById('fecha-desde').value;
+  const hasta = document.getElementById('fecha-hasta').value;
+  if (!desde || !hasta) {
+    showToast('Selecciona las dos fechas del rango.', 'warning');
+    return;
+  }
+  try {
+    reporteActual = await window.api.obtenerReportePorDia({ desde, hasta });
+    renderResumen(reporteActual.resumen);
+    renderDias(reporteActual.dias);
+  } catch (error) {
+    showToast(mensajeError(error), 'error');
+  }
+}
+
+async function abrirVentasDia(fecha) {
+  const contenido = document.getElementById('contenido-ventas-dia');
+  document.getElementById('titulo-ventas-dia').textContent = `Ventas del ${nombreDia(fecha)}`;
+  contenido.innerHTML = '<p class="text-muted">Cargando ventas…</p>';
+  openModal('modal-ventas-dia');
+  try {
+    const ventas = await window.api.obtenerVentasDelDia(fecha);
+    if (!ventas.length) {
+      contenido.innerHTML = '<div class="empty-state"><p>No hay ventas completadas este día.</p></div>';
+      return;
+    }
+    contenido.innerHTML = ventas.map(venta => `
+      <article style="padding:12px 0;border-bottom:1px solid var(--gray-100)">
+        <div class="flex gap-2" style="justify-content:space-between;flex-wrap:wrap"><strong>${escapeHtml(venta.numero)}</strong><span>${escapeHtml(venta.hora)} · ${escapeHtml(venta.metodoPago)}</span></div>
+        <div class="text-sm text-muted">${escapeHtml(venta.cliente)}</div>
+        <div class="text-sm" style="margin:8px 0">${venta.items.map(item => `<div>${item.esLibre ? '<span class="badge badge-info">Libre</span> ' : ''}${escapeHtml(item.nombre)} ×${Number(item.cantidad)} · ${formatPeso(Number(item.subtotal))}</div>`).join('')}</div>
+        <div class="fw-600" style="text-align:right">Total: ${formatPeso(Number(venta.total))}</div>
+      </article>`).join('');
+  } catch (error) {
+    closeModal('modal-ventas-dia');
+    showToast(mensajeError(error), 'error');
+  }
+}
+
+function cerrarVentasDia() { closeModal('modal-ventas-dia'); }
+
+document.getElementById('btn-generar').addEventListener('click', cargarReporte);
+document.getElementById('fecha-desde').addEventListener('change', cargarReporte);
+document.getElementById('fecha-hasta').addEventListener('change', cargarReporte);
+document.getElementById('tbody-reporte').addEventListener('click', event => {
+  const fila = event.target.closest('[data-fecha]');
+  if (fila) abrirVentasDia(fila.dataset.fecha);
+});
+document.getElementById('tbody-reporte').addEventListener('keydown', event => {
+  if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('[data-fecha]')) {
+    event.preventDefault();
+    abrirVentasDia(event.target.dataset.fecha);
+  }
+});
+document.getElementById('grafico-ventas').addEventListener('click', event => {
+  const boton = event.target.closest('[data-fecha]');
+  if (boton) abrirVentasDia(boton.dataset.fecha);
+});
+document.getElementById('modal-ventas-dia').addEventListener('click', event => {
+  if (event.target === event.currentTarget) cerrarVentasDia();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && document.getElementById('modal-ventas-dia').classList.contains('open')) cerrarVentasDia();
+});
+
+const hoyInicial = fechaHoyBogota();
+establecerRango(moverFecha(hoyInicial, -6), hoyInicial);
+</script>
+</body>
+</html>

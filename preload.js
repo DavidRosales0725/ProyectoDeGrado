@@ -11,4 +11,6 @@ contextBridge.exposeInMainWorld('api', {
   registrarVenta: (datos) => ipcRenderer.invoke('ventas:registrar', datos),
   listarVentas: () => ipcRenderer.invoke('ventas:listar'),
   obtenerResumen: () => ipcRenderer.invoke('dashboard:resumen'),
+  obtenerReportePorDia: (rango) => ipcRenderer.invoke('reportes:porDia', rango),
+  obtenerVentasDelDia: (fecha) => ipcRenderer.invoke('reportes:ventasDelDia', fecha),
 });
