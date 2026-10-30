@@ -1,4 +1,11 @@
-const { LIMITE_STOCK, LIMITE_PRECIO } = require('./limites');
+const {
+  LIMITE_STOCK,
+  LIMITE_PRECIO,
+  MAX_NOMBRE,
+  MAX_CATEGORIA,
+  MAX_DESCRIPCION,
+  validarTextoUnaLinea,
+} = require('./limites');
 
 function crearTablasProductos(db) {
   db.exec(`
@@ -28,9 +35,9 @@ function crearTablasProductos(db) {
 }
 
 function validar(p) {
-  const nombre = String(p?.nombre ?? '').trim();
-  const categoria = String(p?.categoria ?? '').trim();
-  const descripcion = String(p?.descripcion ?? '').trim();
+  const nombre = validarTextoUnaLinea(p?.nombre, 'El nombre', MAX_NOMBRE);
+  const categoria = validarTextoUnaLinea(p?.categoria, 'La categoría', MAX_CATEGORIA);
+  const descripcion = validarTextoUnaLinea(p?.descripcion, 'La descripción', MAX_DESCRIPCION);
   const precio = Number(p?.precio);
   const stock = Number(p?.stock);
   const stockMin = Number(p?.stockMin ?? 0);

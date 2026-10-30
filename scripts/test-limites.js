@@ -79,6 +79,61 @@ try {
   assert.equal(listado.find(p => p.nombre === 'Stock máximo').stock, 1000000);
   console.log('✅ productos:listar sigue funcionando después de los rechazos');
 
+  const nombreMaximo = invocar('productos:crear', datosProducto('N'.repeat(100)));
+  assert.equal(nombreMaximo.nombre.length, 100);
+  assert.throws(
+    () => invocar('productos:crear', datosProducto('N'.repeat(101))),
+    /nombre.*100 caracteres/i,
+  );
+  assert.throws(
+    () => invocar('productos:crear', { ...datosProducto('Descripción extensa'), descripcion: 'D'.repeat(201) }),
+    /descripción.*200 caracteres/i,
+  );
+  console.log('✅ acepta nombre de 100 caracteres y rechaza nombre 101 y descripción 201');
+
+  assert.throws(
+    () => invocar('ventas:registrar', {
+      cliente: 'C'.repeat(101), metodoPago: 'tarjeta',
+      items: [{ productoId: maximo.id, cantidad: 1 }],
+    }),
+    /cliente.*100 caracteres/i,
+  );
+  assert.throws(
+    () => invocar('inventario:ajustar', {
+      productoId: maximo.id, tipo: 'entrada', cantidad: 1, motivo: 'M'.repeat(201),
+    }),
+    /motivo.*200 caracteres/i,
+  );
+  console.log('✅ rechaza cliente 101 y motivo 201');
+
+  const conSalto = mensaje => /saltos de línea|caracteres de control/i.test(mensaje);
+  assert.throws(() => invocar('productos:crear', datosProducto('Nombre\ninválido')), conSalto);
+  assert.throws(() => invocar('productos:crear', { ...datosProducto('Categoría válida'), categoria: 'Cat\negoría' }), conSalto);
+  assert.throws(() => invocar('productos:crear', { ...datosProducto('Descripción inválida'), descripcion: 'Línea 1\nLínea 2' }), conSalto);
+  assert.throws(() => invocar('ventas:registrar', {
+    cliente: 'Cliente\ninválido', metodoPago: 'tarjeta', items: [{ productoId: maximo.id, cantidad: 1 }],
+  }), conSalto);
+  assert.throws(() => invocar('inventario:ajustar', {
+    productoId: maximo.id, tipo: 'entrada', cantidad: 1, motivo: 'Línea 1\nLínea 2',
+  }), conSalto);
+  assert.throws(() => invocar('productos:crear', datosProducto('   ')), /nombre es obligatorio/i);
+  console.log('✅ rechaza controles y saltos de línea en campos de una línea y nombres vacíos');
+
+  assert.throws(
+    () => invocar('productos:crear', datosProducto('X'.repeat(100000))),
+    /nombre.*100 caracteres/i,
+  );
+  assert.equal(invocar('productos:listar').length, 3);
+  const unicode = invocar('productos:crear', {
+    ...datosProducto('Café Piñata 🥖'),
+    categoria: 'Alimentos ñ',
+    descripcion: 'Fruta, café y emojis 😊',
+  });
+  assert.equal(unicode.nombre, 'Café Piñata 🥖');
+  assert.equal(unicode.categoria, 'Alimentos ñ');
+  assert.equal(unicode.descripcion, 'Fruta, café y emojis 😊');
+  console.log('✅ rechaza cadena de 100.000 sin dañar el listado y acepta acentos, ñ y emojis');
+
   assert.throws(
     () => invocar('ventas:registrar', {
       cliente: 'Prueba',

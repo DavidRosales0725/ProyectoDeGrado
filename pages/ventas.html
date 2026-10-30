@@ -36,7 +36,10 @@
           <div class="card-body">
             <div class="form-group">
               <label for="codigo-barras">Escanear código de barras</label>
-              <input type="text" id="codigo-barras" placeholder="Escanea o escribe un código y presiona Enter" autocomplete="off" autofocus />
+              <div class="flex gap-2">
+                <input type="text" id="codigo-barras" placeholder="Escanea o escribe un código y presiona Enter" autocomplete="off" autofocus style="flex:1;min-width:0" />
+                <button class="btn btn-ghost" type="button" onclick="abrirModalProductoLibre()">➕ Producto libre</button>
+              </div>
               <span class="text-sm text-muted">El lector funciona como teclado. También puedes buscar productos por nombre abajo.</span>
             </div>
           </div>
@@ -71,13 +74,13 @@
           <div class="card" style="position:sticky;top:80px">
             <div class="card-header">
               <span class="card-title">🛒 Carrito</span>
-              <button class="btn btn-ghost btn-sm" onclick="limpiarCarrito()">Limpiar</button>
+              <button class="btn btn-ghost btn-sm" onclick="solicitarVaciarCarrito()">Limpiar</button>
             </div>
             <div class="card-body">
 
               <div class="form-group" style="margin-bottom:16px">
                 <label>Nombre del cliente</label>
-                <input type="text" id="cliente-nombre" placeholder="Ej: Juan Martínez" />
+                <input type="text" id="cliente-nombre" placeholder="Ej: Juan Martínez" maxlength="100" />
               </div>
 
               <div class="form-group" style="margin-bottom:16px">
@@ -147,6 +150,50 @@
   </div>
 </div>
 
+<!-- Modal: Agregar producto libre -->
+<div class="modal-overlay" id="modal-producto-libre">
+  <form class="modal" id="form-producto-libre">
+    <div class="modal-header">
+      <h3>Agregar producto libre</h3>
+      <button class="modal-close" type="button" aria-label="Cerrar" onclick="cerrarModalProductoLibre()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="libre-nombre">Nombre *</label>
+        <input type="text" id="libre-nombre" maxlength="100" required />
+      </div>
+      <div class="form-group mt-3">
+        <label for="libre-precio">Precio unitario *</label>
+        <input type="number" id="libre-precio" min="0.01" max="100000000" step="any" required />
+      </div>
+      <div class="form-group mt-3">
+        <label for="libre-cantidad">Cantidad *</label>
+        <input type="number" id="libre-cantidad" min="1" max="1000000" step="1" value="1" required />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" type="button" onclick="cerrarModalProductoLibre()">Cancelar</button>
+      <button class="btn btn-primary" type="submit">Agregar al carrito</button>
+    </div>
+  </form>
+</div>
+
+<!-- Modal: Confirmación para vaciar el carrito -->
+<div class="modal-overlay" id="modal-confirmar-vaciar" role="dialog" aria-modal="true" aria-labelledby="confirmar-vaciar-titulo">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="confirmar-vaciar-titulo">Vaciar carrito</h3>
+    </div>
+    <div class="modal-body">
+      <p id="confirmar-vaciar-texto"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="btn-cancelar-vaciar" type="button" onclick="cancelarVaciarCarrito()">Cancelar</button>
+      <button class="btn btn-danger" type="button" onclick="confirmarVaciarCarrito()">Vaciar carrito</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Confirmación de venta exitosa -->
 <div class="modal-overlay" id="modal-exito">
   <div class="modal">
@@ -175,6 +222,7 @@ buildSidebar('ventas');
 
 let productos = [];
 let carrito = [];
+let siguienteIdLibre = 0;
 
 function enfocarEscaner() {
   document.getElementById('codigo-barras')?.focus({ preventScroll: true });
@@ -239,6 +287,63 @@ function agregarAlCarrito(id) {
   renderCatalogo();
 }
 
+function abrirModalProductoLibre() {
+  document.getElementById('form-producto-libre').reset();
+  document.getElementById('libre-cantidad').value = '1';
+  openModal('modal-producto-libre');
+  document.getElementById('libre-nombre').focus();
+}
+
+function cerrarModalProductoLibre() {
+  closeModal('modal-producto-libre');
+  document.getElementById('form-producto-libre').reset();
+  document.getElementById('libre-cantidad').value = '1';
+  enfocarEscaner();
+}
+
+function agregarProductoLibre() {
+  const nombre = document.getElementById('libre-nombre').value.trim();
+  const precio = Number(document.getElementById('libre-precio').value);
+  const cantidad = Number(document.getElementById('libre-cantidad').value);
+
+  if (!nombre) {
+    showToast('El nombre del producto libre es obligatorio.', 'warning');
+    return;
+  }
+  if (nombre.length > 100 || /[\u0000-\u001F\u007F]/.test(nombre)) {
+    showToast('El nombre debe tener hasta 100 caracteres y no incluir saltos de línea.', 'warning');
+    return;
+  }
+  if (!Number.isFinite(precio) || precio <= 0 || precio > 100000000) {
+    showToast('El precio debe ser mayor a 0 y no superar $100.000.000.', 'warning');
+    return;
+  }
+  if (!Number.isSafeInteger(cantidad) || cantidad < 1 || cantidad > 1000000) {
+    showToast('La cantidad debe ser un entero entre 1 y 1.000.000.', 'warning');
+    return;
+  }
+  const subtotal = precio * cantidad;
+  if (!Number.isFinite(subtotal) || subtotal > 1000000000000) {
+    showToast('El subtotal no puede superar $1.000.000.000.000.', 'warning');
+    return;
+  }
+
+  carrito.push({
+    libre: true,
+    libreId: ++siguienteIdLibre,
+    productoId: null,
+    nombre,
+    precioUnit: precio,
+    qty: cantidad,
+    stockMax: 1000000,
+  });
+  cerrarModalProductoLibre();
+  renderCarrito();
+  renderCatalogo();
+  showToast(`Producto libre "${nombre}" agregado al carrito.`, 'success');
+  enfocarEscaner();
+}
+
 async function procesarCodigoBarras(event) {
   if (event.key !== 'Enter') return;
   event.preventDefault();
@@ -300,10 +405,22 @@ function quitarDelCarrito(id) {
   renderCatalogo();
 }
 
+function quitarLibreDelCarrito(id) {
+  carrito = carrito.filter(c => !c.libre || c.libreId !== Number(id));
+  renderCarrito();
+}
+
 function cambiarQty(id, delta) {
   const item = carrito.find(c => c.productoId === Number(id));
   if (!item) return;
   item.qty = Math.max(1, Math.min(item.stockMax, item.qty + delta));
+  renderCarrito();
+}
+
+function cambiarQtyLibre(id, delta) {
+  const item = carrito.find(c => c.libre && c.libreId === Number(id));
+  if (!item) return;
+  item.qty = Math.max(1, Math.min(1000000, item.qty + delta));
   renderCarrito();
 }
 
@@ -314,6 +431,28 @@ function limpiarCarrito() {
   renderCarrito();
   renderCatalogo();
   actualizarPago();
+}
+
+function solicitarVaciarCarrito() {
+  if (!carrito.length) {
+    limpiarCarrito();
+    return;
+  }
+  document.getElementById('confirmar-vaciar-texto').textContent =
+    `¿Vaciar el carrito? Se quitarán ${carrito.length} producto(s)`;
+  openModal('modal-confirmar-vaciar');
+  document.getElementById('btn-cancelar-vaciar').focus();
+}
+
+function cancelarVaciarCarrito() {
+  closeModal('modal-confirmar-vaciar');
+  enfocarEscaner();
+}
+
+function confirmarVaciarCarrito() {
+  closeModal('modal-confirmar-vaciar');
+  limpiarCarrito();
+  enfocarEscaner();
 }
 
 function renderCarrito() {
@@ -327,11 +466,12 @@ function renderCarrito() {
 
   el.innerHTML = carrito.map(item => `
     <div class="cart-item">
-      <div class="cart-item-info"><div class="cart-item-name">${escapeHtml(item.nombre)}</div>
+      <div class="cart-item-info"><div class="cart-item-name">${item.libre ? '<span class="badge badge-info">Libre</span> ' : ''}${escapeHtml(item.nombre)}</div>
         <div class="cart-item-price">${formatPeso(item.precioUnit)} c/u</div></div>
-      <div class="qty-ctrl"><button class="qty-btn" onclick="cambiarQty(${item.productoId}, -1)">−</button>
-        <span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="cambiarQty(${item.productoId}, 1)">＋</button></div>
+      <div class="qty-ctrl"><button class="qty-btn" onclick="${item.libre ? `cambiarQtyLibre(${item.libreId}, -1)` : `cambiarQty(${item.productoId}, -1)`}">−</button>
+        <span class="qty-val">${Number(item.qty)}</span><button class="qty-btn" onclick="${item.libre ? `cambiarQtyLibre(${item.libreId}, 1)` : `cambiarQty(${item.productoId}, 1)`}">＋</button></div>
       <div style="min-width:80px;text-align:right;font-weight:600;font-size:13.5px">${formatPeso(item.precioUnit * item.qty)}</div>
+      <button class="btn btn-danger btn-sm" onclick="${item.libre ? `quitarLibreDelCarrito(${item.libreId})` : `quitarDelCarrito(${item.productoId})`}" aria-label="Quitar ${escapeHtml(item.nombre)}">✕</button>
     </div>`).join('');
 
   const total = carrito.reduce((s, i) => s + i.precioUnit * i.qty, 0);
@@ -371,7 +511,9 @@ async function confirmarVenta() {
     cliente,
     metodoPago,
     montoRecibido: metodoPago === 'efectivo' ? montoRecibido : undefined,
-    items: carrito.map(c => ({ productoId: c.productoId, cantidad: c.qty }))
+    items: carrito.map(c => c.libre
+      ? { libre: true, nombre: c.nombre, precio: c.precioUnit, cantidad: c.qty }
+      : { productoId: c.productoId, cantidad: c.qty })
   };
 
   let venta;
@@ -385,7 +527,7 @@ async function confirmarVenta() {
   document.getElementById('exito-msg').textContent =
     `Venta ${venta.numero} registrada para ${venta.cliente}. Método de pago: ${venta.metodoPago}.`;
   const filas = venta.items.map(item => `
-    <div class="flex gap-2 mb-4"><span style="flex:1">${escapeHtml(item.nombre)}</span>
+    <div class="flex gap-2 mb-4"><span style="flex:1">${item.esLibre ? '<span class="badge badge-info">Libre</span> ' : ''}${escapeHtml(item.nombre)}</span>
       <span class="text-muted">×${Number(item.cantidad)}</span>
       <span class="fw-600">${formatPeso(Number(item.subtotal))}</span></div>`).join('');
   const pago = venta.metodoPago === 'efectivo'
@@ -419,7 +561,7 @@ async function renderHistorial() {
   tbody.innerHTML = ventas.map(v => `
     <tr><td><span class="fw-600">${escapeHtml(v.numero)}</span></td>
       <td>${escapeHtml(v.cliente)}</td>
-      <td>${v.items.map(i => `<div class="text-sm">${escapeHtml(i.nombre)} <span class="text-muted">×${Number(i.cantidad)}</span></div>`).join('')}</td>
+      <td>${v.items.map(i => `<div class="text-sm">${i.esLibre ? '<span class="badge badge-info">Libre</span> ' : ''}${escapeHtml(i.nombre)} <span class="text-muted">×${Number(i.cantidad)}</span></div>`).join('')}</td>
       <td class="text-muted text-sm">${escapeHtml(formatFecha(v.fecha))}</td>
       <td class="fw-600" style="color:var(--success)">${formatPeso(Number(v.total))}</td>
       <td><span class="badge badge-success">✓ ${escapeHtml(v.estado)}</span></td></tr>`).join('');
@@ -432,6 +574,28 @@ async function renderHistorial() {
 })();
 
 document.getElementById('codigo-barras').addEventListener('keydown', procesarCodigoBarras);
+document.getElementById('form-producto-libre').addEventListener('submit', event => {
+  event.preventDefault();
+  agregarProductoLibre();
+});
+document.getElementById('modal-producto-libre').addEventListener('click', event => {
+  if (event.target === event.currentTarget) cerrarModalProductoLibre();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && document.getElementById('modal-producto-libre').classList.contains('open')) {
+    event.preventDefault();
+    cerrarModalProductoLibre();
+  }
+});
+document.getElementById('modal-confirmar-vaciar').addEventListener('click', event => {
+  if (event.target === event.currentTarget) cancelarVaciarCarrito();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && document.getElementById('modal-confirmar-vaciar').classList.contains('open')) {
+    event.preventDefault();
+    cancelarVaciarCarrito();
+  }
+});
 </script>
 </body>
 </html>

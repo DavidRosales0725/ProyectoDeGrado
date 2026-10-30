@@ -1,12 +1,12 @@
 // inventario.js
-const { LIMITE_STOCK } = require('./limites');
+const { LIMITE_STOCK, MAX_MOTIVO, validarTextoUnaLinea } = require('./limites');
 
 module.exports = function registrarInventario(ipcMain, db) {
     ipcMain.handle('inventario:ajustar', (_, datos) => {
         const productoId = Number(datos?.productoId);
         const tipo = String(datos?.tipo ?? '');
         const cantidad = Number(datos?.cantidad);
-        const motivo = String(datos?.motivo ?? '').trim().slice(0, 200);
+        const motivo = validarTextoUnaLinea(datos?.motivo, 'El motivo', MAX_MOTIVO);
 
         if (!Number.isInteger(productoId)) throw new Error('Producto inválido');
         if (!['entrada', 'salida', 'manual'].includes(tipo)) throw new Error('Tipo de ajuste inválido');
