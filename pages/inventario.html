@@ -18,7 +18,7 @@
             <p id="topbar-date"></p>
           </div>
           <div class="topbar-right">
-            <button class="btn btn-primary" onclick="openModal('modal-ajuste')">
+            <button class="btn btn-primary" id="btn-ajustar-stock" hidden onclick="openModal('modal-ajuste')">
               📥 Ajustar stock
             </button>
           </div>
@@ -153,10 +153,8 @@
     <script src="../js/store.js"></script>
     <script src="../js/ui.js"></script>
     <script>
-requireAuth();
-buildSidebar('inventario');
-
 let productos = [];
+let esAdministrador = false;
 
 function mensajeError(e) {
   return String(e?.message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
@@ -263,7 +261,7 @@ function renderInventario() {
       </td>
       <td>${bdg}</td>
       <td>
-        <button class="btn btn-ghost btn-sm" onclick="abrirAjuste(${Number(p.id)})">📥 Ajustar</button>
+        ${esAdministrador ? `<button class="btn btn-ghost btn-sm" onclick="abrirAjuste(${Number(p.id)})">📥 Ajustar</button>` : '—'}
       </td>
     </tr>`;
   }).join('');
@@ -349,7 +347,12 @@ async function aplicarAjuste() {
   buildSidebar('inventario'); // actualiza la insignia de stock bajo
 }
 
-(async () => {
+ (async () => {
+  if (!await requireAuth()) return;
+  esAdministrador = sesionActual.rol === 'administrador';
+  document.getElementById('btn-ajustar-stock').hidden = !esAdministrador;
+  if (!esAdministrador) document.getElementById('modal-ajuste').remove();
+  await buildSidebar('inventario');
   await cargarProductos();
   renderStats();
   renderInventario();

@@ -6,6 +6,7 @@ const {
   MAX_DESCRIPCION,
   validarTextoUnaLinea,
 } = require('./limites');
+const { handle } = require('./autorizacion');
 
 function crearTablasProductos(db) {
   db.exec(`
@@ -89,10 +90,10 @@ function ejecutarConErrorCodigo(db, codigoBarras, accion) {
 }
 
 module.exports = function registrarProductos(ipcMain, db) {
-  ipcMain.handle('productos:listar', () =>
+  handle(ipcMain, 'productos:listar', ['administrador', 'vendedor'], () =>
     db.prepare(`${SELECT} WHERE activo = 1 ORDER BY nombre`).all());
 
-  ipcMain.handle('productos:crear', (_, datos) => {
+  handle(ipcMain, 'productos:crear', ['administrador'], (_, sesion, datos) => {
     const p = validar(datos);
     validarCodigoDisponible(db, p.codigoBarras);
     const r = ejecutarConErrorCodigo(db, p.codigoBarras, () => db.prepare(
@@ -101,7 +102,7 @@ module.exports = function registrarProductos(ipcMain, db) {
     return db.prepare(`${SELECT} WHERE id = ?`).get(Number(r.lastInsertRowid));
   });
 
-  ipcMain.handle('productos:actualizar', (_, id, datos) => {
+  handle(ipcMain, 'productos:actualizar', ['administrador'], (_, sesion, id, datos) => {
     const p = validar(datos);
     validarCodigoDisponible(db, p.codigoBarras, id);
     ejecutarConErrorCodigo(db, p.codigoBarras, () => db.prepare(
@@ -110,16 +111,16 @@ module.exports = function registrarProductos(ipcMain, db) {
     return db.prepare(`${SELECT} WHERE id = ?`).get(id);
   });
 
-  ipcMain.handle('productos:stockBajo', () =>
+  handle(ipcMain, 'productos:stockBajo', ['administrador', 'vendedor'], () =>
     db.prepare('SELECT COUNT(*) AS n FROM productos WHERE activo = 1 AND stock <= stock_min').get().n);
 
-  ipcMain.handle('productos:buscarPorCodigo', (_, codigo) => {
+  handle(ipcMain, 'productos:buscarPorCodigo', ['administrador', 'vendedor'], (_, sesion, codigo) => {
     const codigoBarras = String(codigo ?? '').trim();
     if (!codigoBarras) return null;
     return db.prepare(`${SELECT} WHERE codigo_barras = ? AND activo = 1`).get(codigoBarras) ?? null;
   });
 
-  ipcMain.handle('productos:eliminar', (_, id) => {
+  handle(ipcMain, 'productos:eliminar', ['administrador'], (_, sesion, id) => {
     db.prepare('UPDATE productos SET activo = 0, codigo_barras = NULL WHERE id = ?').run(id);
     return true;
   });

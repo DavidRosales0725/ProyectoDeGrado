@@ -12,6 +12,7 @@ db.exec(`
 `);
 
 require('./productos').crearTablasProductos(db);
+require('./sesion').crearTablaUsuarios(db);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS movimientos_inventario (
@@ -27,6 +28,7 @@ db.exec(`
 `);
 
 require('./ventas').crearTablasVentas(db);
+require('./sesion').migrarVentasUsuario(db);
 
 // SOLO DESARROLLO: datos de demostración si la tabla está vacía (luego lo quitamos)
 const { n } = db.prepare('SELECT COUNT(*) AS n FROM productos').get();

@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const { DatabaseSync } = require('node:sqlite');
 const registrarVentas = require('../ventas');
 const { crearTablasVentas } = registrarVentas;
+const { autenticarAdminPrueba } = require('./test-auth-helper');
 
 function preparar() {
   const db = new DatabaseSync(':memory:');
@@ -33,11 +34,13 @@ function preparar() {
     inactivo: Number(insertar.run('Producto inactivo', 7000, 10, 0).lastInsertRowid),
   };
   const handlers = new Map();
-  registrarVentas({ handle: (nombre, fn) => {
+  const ipc = { handle: (nombre, fn) => {
     assert.equal(handlers.has(nombre), false, `Handler duplicado: ${nombre}`);
     handlers.set(nombre, fn);
-  } }, db);
-  return { db, ids, invocar: (nombre, datos) => handlers.get(nombre)({}, datos) };
+  } };
+  autenticarAdminPrueba(ipc, handlers, db);
+  registrarVentas(ipc, db);
+  return { db, ids, invocar: (nombre, ...args) => handlers.get(nombre)({}, ...args) };
 }
 
 function probar(nombre, fn) {

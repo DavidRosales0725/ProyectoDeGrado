@@ -2,16 +2,19 @@ const assert = require('node:assert/strict');
 const { DatabaseSync } = require('node:sqlite');
 const registrarProductos = require('../productos');
 const { crearTablasProductos } = registrarProductos;
+const { autenticarAdminPrueba } = require('./test-auth-helper');
 
 function registrar(db) {
   crearTablasProductos(db);
   const handlers = new Map();
-  registrarProductos({
+  const ipc = {
     handle(nombre, handler) {
       assert.equal(handlers.has(nombre), false, `Handler repetido: ${nombre}`);
       handlers.set(nombre, handler);
     },
-  }, db);
+  };
+  autenticarAdminPrueba(ipc, handlers, db);
+  registrarProductos(ipc, db);
   return {
     invocar: (canal, ...args) => handlers.get(canal)({}, ...args),
   };

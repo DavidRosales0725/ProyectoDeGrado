@@ -6,6 +6,7 @@ const {
   MAX_NOMBRE,
   validarTextoUnaLinea,
 } = require('./limites');
+const { handle } = require('./autorizacion');
 
 const MAX_LINEAS_VENTA = 100;
 
@@ -82,9 +83,10 @@ const METODOS_PAGO = new Set(['efectivo', 'tarjeta', 'transferencia']);
 
 function obtenerVenta(db, id) {
   const venta = db.prepare(`
-    SELECT id, numero, fecha, cliente, total, metodo_pago AS metodoPago,
-           monto_recibido AS montoRecibido, cambio, estado
-    FROM ventas WHERE id = ?
+    SELECT v.id, v.numero, v.fecha, v.cliente, v.total, v.metodo_pago AS metodoPago,
+           v.monto_recibido AS montoRecibido, v.cambio, v.estado,
+           v.usuario_id AS usuarioId, u.nombre AS usuario
+    FROM ventas v LEFT JOIN usuarios u ON u.id = v.usuario_id WHERE v.id = ?
   `).get(id);
   if (!venta) return null;
   venta.items = db.prepare(`
@@ -156,7 +158,7 @@ function normalizarItems(items) {
 }
 
 module.exports = function registrarVentas(ipcMain, db) {
-  ipcMain.handle('ventas:registrar', (_, datos) => {
+  handle(ipcMain, 'ventas:registrar', ['administrador', 'vendedor'], (_, sesion, datos) => {
     const items = normalizarItems(datos?.items);
     const cliente = validarTextoUnaLinea(datos?.cliente, 'El cliente', MAX_CLIENTE) || 'Cliente general';
     const metodoPago = String(datos?.metodoPago ?? '');
@@ -198,9 +200,9 @@ module.exports = function registrarVentas(ipcMain, db) {
       const cambio = metodoPago === 'efectivo' ? montoRecibido - total : 0;
 
       const creada = db.prepare(`
-        INSERT INTO ventas (numero, cliente, total, metodo_pago, monto_recibido, cambio)
-        VALUES ('PENDIENTE', ?, ?, ?, ?, ?)
-      `).run(cliente, total, metodoPago, montoRecibido, cambio);
+        INSERT INTO ventas (numero, cliente, total, metodo_pago, monto_recibido, cambio, usuario_id)
+        VALUES ('PENDIENTE', ?, ?, ?, ?, ?, ?)
+      `).run(cliente, total, metodoPago, montoRecibido, cambio, sesion.id);
       const id = Number(creada.lastInsertRowid);
       const numero = `VTA-${String(id).padStart(6, '0')}`;
       db.prepare('UPDATE ventas SET numero = ? WHERE id = ?').run(numero, id);
@@ -240,8 +242,10 @@ module.exports = function registrarVentas(ipcMain, db) {
     }
   });
 
-  ipcMain.handle('ventas:listar', () => {
-    const ventas = db.prepare('SELECT id FROM ventas ORDER BY id DESC').all();
+  handle(ipcMain, 'ventas:listar', ['administrador', 'vendedor'], (_, sesion) => {
+    const ventas = sesion.rol === 'administrador'
+      ? db.prepare('SELECT id FROM ventas ORDER BY id DESC').all()
+      : db.prepare('SELECT id FROM ventas WHERE usuario_id = ? ORDER BY id DESC').all(sesion.id);
     return ventas.map(({ id }) => obtenerVenta(db, id));
   });
 };

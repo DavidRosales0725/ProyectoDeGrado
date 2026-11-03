@@ -1,8 +1,9 @@
 // inventario.js
 const { LIMITE_STOCK, MAX_MOTIVO, validarTextoUnaLinea } = require('./limites');
+const { handle } = require('./autorizacion');
 
 module.exports = function registrarInventario(ipcMain, db) {
-    ipcMain.handle('inventario:ajustar', (_, datos) => {
+    handle(ipcMain, 'inventario:ajustar', ['administrador'], (_, sesion, datos) => {
         const productoId = Number(datos?.productoId);
         const tipo = String(datos?.tipo ?? '');
         const cantidad = Number(datos?.cantidad);

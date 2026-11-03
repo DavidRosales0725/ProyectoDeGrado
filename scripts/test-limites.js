@@ -5,6 +5,7 @@ const registrarInventario = require('../inventario');
 const registrarVentas = require('../ventas');
 const { crearTablasProductos } = registrarProductos;
 const { crearTablasVentas } = registrarVentas;
+const { autenticarAdminPrueba } = require('./test-auth-helper');
 
 const db = new DatabaseSync(':memory:');
 db.exec('PRAGMA foreign_keys = ON;');
@@ -30,6 +31,7 @@ const ipcFalso = {
     handlers.set(nombre, fn);
   },
 };
+autenticarAdminPrueba(ipcFalso, handlers, db);
 registrarProductos(ipcFalso, db);
 registrarInventario(ipcFalso, db);
 registrarVentas(ipcFalso, db);

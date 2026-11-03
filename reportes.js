@@ -4,6 +4,7 @@ const {
   limitesFechaBogota,
   horaLocalBogota,
 } = require('./fechas');
+const { handle } = require('./autorizacion');
 
 const MAX_DIAS_REPORTE = 366;
 
@@ -84,8 +85,8 @@ function obtenerVentasDelDia(db, fecha) {
 }
 
 module.exports = function registrarReportes(ipcMain, db) {
-  ipcMain.handle('reportes:porDia', (_, rango) => obtenerReportePorDia(db, rango));
-  ipcMain.handle('reportes:ventasDelDia', (_, fecha) => obtenerVentasDelDia(db, fecha));
+  handle(ipcMain, 'reportes:porDia', ['administrador'], (_, sesion, rango) => obtenerReportePorDia(db, rango));
+  handle(ipcMain, 'reportes:ventasDelDia', ['administrador'], (_, sesion, fecha) => obtenerVentasDelDia(db, fecha));
 };
 
 module.exports.obtenerReportePorDia = obtenerReportePorDia;

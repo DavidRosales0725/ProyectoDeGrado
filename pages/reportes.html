@@ -72,9 +72,6 @@
 <script src="../js/store.js"></script>
 <script src="../js/ui.js"></script>
 <script>
-requireAuth();
-buildSidebar('reportes');
-
 const BOGOTA = 'America/Bogota';
 let reporteActual = null;
 
@@ -209,7 +206,11 @@ document.addEventListener('keydown', event => {
 });
 
 const hoyInicial = fechaHoyBogota();
-establecerRango(moverFecha(hoyInicial, -6), hoyInicial);
+(async () => {
+  if (!await requireRol(['administrador'])) return;
+  await buildSidebar('reportes');
+  establecerRango(moverFecha(hoyInicial, -6), hoyInicial);
+})();
 </script>
 </body>
 </html>

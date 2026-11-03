@@ -18,11 +18,13 @@ function crearVentana() {
 
 app.whenReady().then(() => {
   db = require("./database");
+  require("./sesion").registrarSesion(ipcMain, db);
   require("./productos")(ipcMain, db);
   require("./inventario")(ipcMain, db);
   require("./ventas")(ipcMain, db);
   require("./dashboard")(ipcMain, db);
   require("./reportes")(ipcMain, db);
+  require("./usuarios")(ipcMain, db);
   crearVentana();
 });
 

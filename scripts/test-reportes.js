@@ -3,6 +3,7 @@ const { DatabaseSync } = require('node:sqlite');
 const registrarVentas = require('../ventas');
 const registrarReportes = require('../reportes');
 const { crearTablasVentas } = registrarVentas;
+const { autenticarAdminPrueba } = require('./test-auth-helper');
 
 const db = new DatabaseSync(':memory:');
 db.exec(`
@@ -16,10 +17,12 @@ crearTablasVentas(db);
 const productoId = Number(db.prepare('INSERT INTO productos (nombre, precio) VALUES (?, ?)').run('Arroz', 2000).lastInsertRowid);
 
 const handlers = new Map();
-registrarReportes({ handle: (canal, fn) => {
+const ipc = { handle: (canal, fn) => {
   assert.equal(handlers.has(canal), false, `Handler duplicado: ${canal}`);
   handlers.set(canal, fn);
-} }, db);
+} };
+autenticarAdminPrueba(ipc, handlers, db);
+registrarReportes(ipc, db);
 const invocar = (canal, datos) => handlers.get(canal)({}, datos);
 
 const insertarVenta = db.prepare(`

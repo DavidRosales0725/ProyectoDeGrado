@@ -134,6 +134,7 @@
                 <tr>
                   <th>ID</th>
                   <th>Cliente</th>
+                  <th>Atendió</th>
                   <th>Productos</th>
                   <th>Fecha</th>
                   <th>Total</th>
@@ -217,9 +218,6 @@
 <script src="../js/store.js"></script>
 <script src="../js/ui.js"></script>
 <script>
-requireAuth();
-buildSidebar('ventas');
-
 let productos = [];
 let carrito = [];
 let siguienteIdLibre = 0;
@@ -555,12 +553,13 @@ async function renderHistorial() {
   }
   document.getElementById('total-ventas-badge').textContent = `${ventas.length} ventas`;
   if (!ventas.length) {
-    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🛒</div><p>Aún no hay ventas registradas</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🛒</div><p>Aún no hay ventas registradas</p></div></td></tr>';
     return;
   }
   tbody.innerHTML = ventas.map(v => `
     <tr><td><span class="fw-600">${escapeHtml(v.numero)}</span></td>
       <td>${escapeHtml(v.cliente)}</td>
+      <td>${escapeHtml(v.usuario || '—')}</td>
       <td>${v.items.map(i => `<div class="text-sm">${i.esLibre ? '<span class="badge badge-info">Libre</span> ' : ''}${escapeHtml(i.nombre)} <span class="text-muted">×${Number(i.cantidad)}</span></div>`).join('')}</td>
       <td class="text-muted text-sm">${escapeHtml(formatFecha(v.fecha))}</td>
       <td class="fw-600" style="color:var(--success)">${formatPeso(Number(v.total))}</td>
@@ -568,6 +567,8 @@ async function renderHistorial() {
 }
 
 (async () => {
+  if (!await requireAuth()) return;
+  await buildSidebar('ventas');
   await cargarProductos();
   renderCatalogo();
   renderCarrito();

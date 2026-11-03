@@ -45,8 +45,12 @@ document.addEventListener('click', e => {
 });
 
 // ── NAVEGACIÓN LATERAL ────────────────────────────────────────
+let sesionActual = null;
+
 async function buildSidebar(activeKey) {
-  const usuario = getUsuario();
+  try { sesionActual = await window.api.obtenerSesion(); }
+  catch { sesionActual = null; }
+  const usuario = sesionActual;
   if (!usuario) return;
 
   const initials = usuario.nombre.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
@@ -59,11 +63,14 @@ async function buildSidebar(activeKey) {
   }
 
   const navItems = [
-    { key: 'dashboard',  href: '../pages/dashboard.html', icon: '📊', label: 'Dashboard'   },
+    ...(usuario.rol === 'administrador' ? [{ key: 'dashboard', href: '../pages/dashboard.html', icon: '📊', label: 'Dashboard' }] : []),
     { key: 'productos',  href: '../pages/productos.html', icon: '📦', label: 'Productos'   },
     { key: 'inventario', href: '../pages/inventario.html',icon: '🗄️',  label: 'Inventario'  },
     { key: 'ventas',     href: '../pages/ventas.html',    icon: '🛒', label: 'Ventas'      },
-    { key: 'reportes',   href: '../pages/reportes.html',  icon: '📈', label: 'Reportes'    },
+    ...(usuario.rol === 'administrador' ? [
+      { key: 'reportes', href: '../pages/reportes.html', icon: '📈', label: 'Reportes' },
+      { key: 'usuarios', href: '../pages/usuarios.html', icon: '👥', label: 'Usuarios' },
+    ] : []),
   ];
 
   const navHTML = navItems.map(item => `
@@ -80,7 +87,7 @@ async function buildSidebar(activeKey) {
 
   sidebar.innerHTML = `
     <div class="sidebar-brand">
-      <a class="logo-badge" href="../pages/dashboard.html">
+      <a class="logo-badge" href="${usuario.rol === 'administrador' ? '../pages/dashboard.html' : '../pages/ventas.html'}">
         <div class="logo-icon">🏪</div>
         <div class="logo-text">
           <strong>TiendaApp</strong>
@@ -99,6 +106,7 @@ async function buildSidebar(activeKey) {
           <strong>${escapeHtml(usuario.nombre.split(' ')[0])}</strong>
           <span>${escapeHtml(usuario.rol)}</span>
         </div>
+        <a class="btn-logout" href="../pages/cambiar-clave.html" title="Cambiar mi contraseña">🔑</a>
         <button class="btn-logout" onclick="doLogout()" title="Cerrar sesión">🚪</button>
       </div>
     </div>
@@ -106,18 +114,29 @@ async function buildSidebar(activeKey) {
 }
 
 
-function doLogout() {
-  if (confirm('¿Cerrar sesión?')) {
-    logout();
-    window.location.href = '../index.html';
-  }
+async function doLogout() {
+  try { await window.api.cerrarSesion(); }
+  finally { window.location.replace('../index.html'); }
 }
 
 // ── PROTEGER PÁGINAS ─────────────────────────────────────────
-function requireAuth() {
-  if (!isLoggedIn()) {
-    window.location.href = '../index.html';
+async function requireAuth() {
+  try {
+    sesionActual = await window.api.obtenerSesion();
+    return true;
+  } catch {
+    sesionActual = null;
+    window.location.replace('../index.html');
+    return false;
   }
+}
+
+async function requireRol(roles) {
+  if (!await requireAuth()) return false;
+  if (Array.isArray(roles) && roles.includes(sesionActual.rol)) return true;
+  showToast('No tienes permiso para acceder a esta pantalla.', 'error');
+  setTimeout(() => window.location.replace('../pages/ventas.html'), 800);
+  return false;
 }
 
 // ── FECHA ACTUAL ─────────────────────────────────────────────

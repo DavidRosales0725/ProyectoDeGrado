@@ -1,4 +1,5 @@
 const { limitesDiaBogota } = require('./fechas');
+const { handle } = require('./autorizacion');
 
 function calcularResumen(db, ahora = new Date()) {
   const { inicio, fin } = limitesDiaBogota(
@@ -73,7 +74,7 @@ function calcularResumen(db, ahora = new Date()) {
 }
 
 module.exports = function registrarDashboard(ipcMain, db) {
-  ipcMain.handle("dashboard:resumen", () => calcularResumen(db));
+  handle(ipcMain, "dashboard:resumen", ['administrador'], () => calcularResumen(db));
 };
 
 module.exports.calcularResumen = calcularResumen;

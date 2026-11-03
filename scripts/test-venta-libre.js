@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const { DatabaseSync } = require('node:sqlite');
 const registrarVentas = require('../ventas');
 const { crearTablasVentas } = registrarVentas;
+const { autenticarAdminPrueba } = require('./test-auth-helper');
 
 function base({ migracionAntigua = false } = {}) {
   const db = new DatabaseSync(':memory:');
@@ -49,7 +50,9 @@ function base({ migracionAntigua = false } = {}) {
   crearTablasVentas(db);
   const producto = db.prepare('INSERT INTO productos (nombre, precio, stock) VALUES (?, ?, ?)').run('Arroz', 2000, 5);
   const handlers = new Map();
-  registrarVentas({ handle: (nombre, fn) => handlers.set(nombre, fn) }, db);
+  const ipc = { handle: (nombre, fn) => handlers.set(nombre, fn) };
+  autenticarAdminPrueba(ipc, handlers, db);
+  registrarVentas(ipc, db);
   return { db, productoId: Number(producto.lastInsertRowid), invocar: (nombre, datos) => handlers.get(nombre)({}, datos) };
 }
 

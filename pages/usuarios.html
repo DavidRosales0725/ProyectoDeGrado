@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Usuarios — TiendaApp SENA</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+<div class="app-wrapper">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content">
+    <header class="topbar"><div class="topbar-left"><h1>Usuarios</h1><p id="topbar-date"></p></div>
+      <div class="topbar-right"><button class="btn btn-primary" type="button" onclick="abrirCrearUsuario()">＋ Crear usuario</button></div>
+    </header>
+    <div class="page-body">
+      <div class="proto-banner">👥 Administra las cuentas y sus permisos en esta tienda.</div>
+      <div class="flex" style="justify-content:flex-end;margin:14px 0"><a class="btn btn-ghost" href="cambiar-clave.html">🔑 Cambiar mi contraseña</a></div>
+      <section class="card"><div class="table-wrap"><table>
+        <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Estado</th><th>Creado</th><th>Acciones</th></tr></thead>
+        <tbody id="tbody-usuarios"></tbody>
+      </table></div></section>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="modal-crear-usuario">
+  <form class="modal" id="form-crear-usuario">
+    <div class="modal-header"><h3>Crear usuario</h3><button class="modal-close" type="button" onclick="closeModal('modal-crear-usuario')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label for="nuevo-nombre">Nombre completo</label><input id="nuevo-nombre" maxlength="100" required /></div>
+      <div class="form-group mt-3"><label for="nuevo-usuario">Usuario</label><input id="nuevo-usuario" minlength="3" maxlength="30" required /></div>
+      <div class="form-group mt-3"><label for="nuevo-password">Contraseña inicial</label><input id="nuevo-password" type="password" minlength="8" maxlength="128" required /></div>
+      <div class="form-group mt-3"><label for="nuevo-rol">Rol</label><select id="nuevo-rol"><option value="vendedor">Vendedor</option><option value="administrador">Administrador</option></select></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-ghost" type="button" onclick="closeModal('modal-crear-usuario')">Cancelar</button><button class="btn btn-primary" type="submit">Crear</button></div>
+  </form>
+</div>
+
+<div class="modal-overlay" id="modal-restablecer-clave">
+  <form class="modal" id="form-restablecer-clave">
+    <div class="modal-header"><h3>Restablecer contraseña</h3><button class="modal-close" type="button" onclick="closeModal('modal-restablecer-clave')">✕</button></div>
+    <div class="modal-body"><p id="restablecer-usuario" class="text-muted"></p>
+      <div class="form-group"><label for="clave-restablecida">Nueva contraseña</label><input id="clave-restablecida" type="password" minlength="8" maxlength="128" required /></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-ghost" type="button" onclick="closeModal('modal-restablecer-clave')">Cancelar</button><button class="btn btn-primary" type="submit">Guardar contraseña</button></div>
+  </form>
+</div>
+<div id="toast-container"></div>
+<script src="../js/store.js"></script><script src="../js/ui.js"></script>
+<script>
+let usuarios = [];
+let usuarioClaveId = null;
+
+function mensajeError(error) { return String(error?.message ?? error).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''); }
+
+async function cargarUsuarios() {
+  try {
+    usuarios = await window.api.listarUsuarios();
+    renderUsuarios();
+  } catch (error) { showToast(mensajeError(error), 'error'); }
+}
+
+function renderUsuarios() {
+  const tbody = document.getElementById('tbody-usuarios');
+  if (!usuarios.length) {
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>No hay usuarios.</p></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = usuarios.map(usuario => {
+    const propio = Number(usuario.id) === Number(sesionActual.id);
+    const rol = propio
+      ? `<span class="badge badge-info">${escapeHtml(usuario.rol)}</span>`
+      : `<select aria-label="Rol de ${escapeHtml(usuario.nombre)}" onchange="cambiarRol(${Number(usuario.id)}, this.value)"><option value="vendedor" ${usuario.rol === 'vendedor' ? 'selected' : ''}>Vendedor</option><option value="administrador" ${usuario.rol === 'administrador' ? 'selected' : ''}>Administrador</option></select>`;
+    return `<tr>
+      <td>${escapeHtml(usuario.nombre)}</td><td>${escapeHtml(usuario.usuario)}</td><td>${rol}</td>
+      <td><span class="badge ${usuario.activo ? 'badge-success' : 'badge-danger'}">${usuario.activo ? 'Activo' : 'Inactivo'}</span></td>
+      <td>${escapeHtml(formatFecha(usuario.creado))}</td>
+      <td><div class="flex gap-2" style="flex-wrap:wrap">
+        ${propio ? '<span class="text-muted text-sm">Tu cuenta</span>' : `<button class="btn ${usuario.activo ? 'btn-ghost' : 'btn-primary'} btn-sm" onclick="alternarEstado(${Number(usuario.id)}, ${usuario.activo ? 0 : 1})">${usuario.activo ? 'Desactivar' : 'Activar'}</button>`}
+        <button class="btn btn-ghost btn-sm" onclick="abrirRestablecer(${Number(usuario.id)})">Restablecer clave</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+function abrirCrearUsuario() {
+  document.getElementById('form-crear-usuario').reset();
+  openModal('modal-crear-usuario');
+  document.getElementById('nuevo-nombre').focus();
+}
+
+async function crearUsuario(event) {
+  event.preventDefault();
+  const datos = {
+    nombre: document.getElementById('nuevo-nombre').value,
+    usuario: document.getElementById('nuevo-usuario').value,
+    password: document.getElementById('nuevo-password').value,
+    rol: document.getElementById('nuevo-rol').value,
+  };
+  try {
+    await window.api.crearUsuario(datos);
+    closeModal('modal-crear-usuario');
+    showToast('Usuario creado.', 'success');
+    await cargarUsuarios();
+  } catch (error) { showToast(mensajeError(error), 'error'); }
+}
+
+async function cambiarRol(id, rol) {
+  try {
+    await window.api.cambiarRolUsuario(id, rol);
+    showToast('Rol actualizado.', 'success');
+    await cargarUsuarios();
+  } catch (error) { showToast(mensajeError(error), 'error'); await cargarUsuarios(); }
+}
+
+async function alternarEstado(id, activar) {
+  try {
+    if (activar) await window.api.activarUsuario(id);
+    else await window.api.desactivarUsuario(id);
+    showToast(activar ? 'Usuario activado.' : 'Usuario desactivado.', 'success');
+    await cargarUsuarios();
+  } catch (error) { showToast(mensajeError(error), 'error'); }
+}
+
+function abrirRestablecer(id) {
+  usuarioClaveId = id;
+  const usuario = usuarios.find(item => Number(item.id) === Number(id));
+  document.getElementById('restablecer-usuario').textContent = usuario ? `Nueva clave para ${usuario.nombre} (${usuario.usuario})` : '';
+  document.getElementById('form-restablecer-clave').reset();
+  openModal('modal-restablecer-clave');
+  document.getElementById('clave-restablecida').focus();
+}
+
+async function restablecerClave(event) {
+  event.preventDefault();
+  try {
+    await window.api.restablecerClaveUsuario(usuarioClaveId, document.getElementById('clave-restablecida').value);
+    closeModal('modal-restablecer-clave');
+    showToast('Contraseña restablecida.', 'success');
+  } catch (error) { showToast(mensajeError(error), 'error'); }
+}
+
+document.getElementById('form-crear-usuario').addEventListener('submit', crearUsuario);
+document.getElementById('form-restablecer-clave').addEventListener('submit', restablecerClave);
+(async () => {
+  if (!await requireRol(['administrador'])) return;
+  await buildSidebar('usuarios');
+  await cargarUsuarios();
+})();
+</script>
+</body>
+</html>

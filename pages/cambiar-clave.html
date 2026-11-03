@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Cambiar contraseña — TiendaApp SENA</title><link rel="stylesheet" href="../css/styles.css" /></head>
+<body>
+<div class="app-wrapper"><aside class="sidebar" id="sidebar"></aside><main class="main-content">
+  <header class="topbar"><div class="topbar-left"><h1>Cambiar mi contraseña</h1><p id="topbar-date"></p></div></header>
+  <div class="page-body"><section class="card" style="max-width:600px"><div class="card-body">
+    <form id="form-cambiar-clave">
+      <div class="form-group"><label for="clave-actual">Contraseña actual</label><input id="clave-actual" type="password" maxlength="128" autocomplete="current-password" required /></div>
+      <div class="form-group mt-3"><label for="clave-nueva">Nueva contraseña</label><input id="clave-nueva" type="password" minlength="8" maxlength="128" autocomplete="new-password" required /><small class="text-muted">Entre 8 y 128 caracteres; no puede ser igual al usuario.</small></div>
+      <div class="form-group mt-3"><label for="clave-confirmacion">Confirmar nueva contraseña</label><input id="clave-confirmacion" type="password" minlength="8" maxlength="128" autocomplete="new-password" required /></div>
+      <div class="flex gap-2 mt-4"><button class="btn btn-primary" type="submit">Actualizar contraseña</button><a class="btn btn-ghost" href="ventas.html">Volver</a></div>
+    </form>
+  </div></section></div>
+</main></div><div id="toast-container"></div>
+<script src="../js/store.js"></script><script src="../js/ui.js"></script><script>
+function mensajeError(error) { return String(error?.message ?? error).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''); }
+document.getElementById('form-cambiar-clave').addEventListener('submit', async event => {
+  event.preventDefault();
+  const actual = document.getElementById('clave-actual').value;
+  const nueva = document.getElementById('clave-nueva').value;
+  if (nueva !== document.getElementById('clave-confirmacion').value) { showToast('Las contraseñas nuevas no coinciden.', 'warning'); return; }
+  try {
+    await window.api.cambiarMiClave({ claveActual: actual, nuevaClave: nueva });
+    event.currentTarget.reset();
+    showToast('Contraseña actualizada.', 'success');
+  } catch (error) { showToast(mensajeError(error), 'error'); }
+});
+(async () => { if (await requireAuth()) await buildSidebar(''); })();
+</script></body></html>
