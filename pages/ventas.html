@@ -491,12 +491,19 @@ function renderCarrito() {
 
   el.innerHTML = carrito.map(item => `
     <div class="cart-item">
-      <div class="cart-item-info">${!item.libre && productos.find(p => Number(p.id) === Number(item.productoId))?.tieneImagen ? `<img src="producto-img://p/${Number(item.productoId)}?v=${encodeURIComponent(productos.find(p => Number(p.id) === Number(item.productoId)).imagenVersion || '')}" alt="Foto de ${escapeHtml(item.nombre)}" style="width:40px;height:40px;object-fit:cover;border-radius:6px" />` : '<span aria-label="Sin foto" style="display:inline-flex;width:40px;height:40px;align-items:center;justify-content:center">📦</span>'}<div><div class="cart-item-name">${item.libre ? '<span class="badge badge-info">Libre</span> ' : ''}${escapeHtml(item.nombre)}</div>
-        <div class="cart-item-price">${formatPeso(item.precioUnit)} c/u</div></div>
-      <div class="qty-ctrl"><button class="qty-btn" onclick="${item.libre ? `cambiarQtyLibre(${item.libreId}, -1)` : `cambiarQty(${item.productoId}, -1)`}">−</button>
-        <span class="qty-val">${Number(item.qty)}</span><button class="qty-btn" onclick="${item.libre ? `cambiarQtyLibre(${item.libreId}, 1)` : `cambiarQty(${item.productoId}, 1)`}">＋</button></div>
-      <div style="min-width:80px;text-align:right;font-weight:600;font-size:13.5px">${formatPeso(item.precioUnit * item.qty)}</div>
-      <button class="btn btn-danger btn-sm" onclick="${item.libre ? `quitarLibreDelCarrito(${item.libreId})` : `quitarDelCarrito(${item.productoId})`}" aria-label="Quitar ${escapeHtml(item.nombre)}">✕</button>
+      <div class="cart-item-info">
+        ${!item.libre && productos.find(p => Number(p.id) === Number(item.productoId))?.tieneImagen ? `<img src="producto-img://p/${Number(item.productoId)}?v=${encodeURIComponent(productos.find(p => Number(p.id) === Number(item.productoId)).imagenVersion || '')}" alt="Foto de ${escapeHtml(item.nombre)}" class="cart-item-image" />` : '<span class="cart-item-image cart-item-image-placeholder" aria-label="Sin foto">📦</span>'}
+        <div class="cart-item-details">
+          <div class="cart-item-name">${item.libre ? '<span class="badge badge-info">Libre</span> ' : ''}${escapeHtml(item.nombre)}</div>
+          <div class="cart-item-price">${formatPeso(item.precioUnit)} c/u</div>
+        </div>
+      </div>
+      <div class="cart-item-controls">
+        <div class="qty-ctrl"><button class="qty-btn" onclick="${item.libre ? `cambiarQtyLibre(${item.libreId}, -1)` : `cambiarQty(${item.productoId}, -1)`}" aria-label="Disminuir cantidad">−</button>
+          <span class="qty-val">${Number(item.qty)}</span><button class="qty-btn" onclick="${item.libre ? `cambiarQtyLibre(${item.libreId}, 1)` : `cambiarQty(${item.productoId}, 1)`}" aria-label="Aumentar cantidad">＋</button></div>
+        <div class="cart-item-subtotal">${formatPeso(item.precioUnit * item.qty)}</div>
+        <button class="btn btn-danger btn-sm" onclick="${item.libre ? `quitarLibreDelCarrito(${item.libreId})` : `quitarDelCarrito(${item.productoId})`}" aria-label="Quitar ${escapeHtml(item.nombre)}">✕</button>
+      </div>
     </div>`).join('');
 
   const total = carrito.reduce((s, i) => s + i.precioUnit * i.qty, 0);
