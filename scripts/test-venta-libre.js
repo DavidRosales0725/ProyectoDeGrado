@@ -72,7 +72,7 @@ prueba('línea libre cobra sin modificar stock ni crear movimientos', ({ db, inv
   assert.equal(result.items[0].esLibre, true);
   assert.equal(result.items[0].productoId, null);
   assert.equal(db.prepare('SELECT stock FROM productos WHERE id = ?').get(productoId).stock, 5);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM movimientos_inventario').get().n, 0);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM movimientos_inventario WHERE producto_id = ? AND tipo = 'venta'").get(productoId).n, 0);
 });
 
 prueba('venta mezclada suma catálogo y línea libre', ({ invocar, productoId }) => {
@@ -107,7 +107,7 @@ prueba('falta de stock revierte la venta completa aunque incluya línea libre', 
   ])), /Stock insuficiente/);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM ventas').get().n, 0);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM venta_items').get().n, 0);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM movimientos_inventario').get().n, 0);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM movimientos_inventario WHERE producto_id = ? AND tipo = 'venta'").get(productoId).n, 0);
   assert.equal(db.prepare('SELECT stock FROM productos WHERE id = ?').get(productoId).stock, 5);
 });
 
@@ -145,7 +145,7 @@ prueba('una línea libre con productoId se procesa como libre sin consultar cat�
   assert.equal(result.items[0].esLibre, true);
   assert.equal(result.items[0].productoId, null);
   assert.equal(result.total, 2500);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM movimientos_inventario').get().n, 0);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM movimientos_inventario WHERE producto_id = ? AND tipo = 'venta'").get(1).n, 0);
 });
 
 console.log('Todas las pruebas de venta libre pasaron.');

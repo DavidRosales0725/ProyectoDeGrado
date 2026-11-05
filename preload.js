@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('api', {
   contarStockBajo: () => ipcRenderer.invoke('productos:stockBajo'),
   ajustarStock: (d) => ipcRenderer.invoke('inventario:ajustar', d),
   registrarVenta: (datos) => ipcRenderer.invoke('ventas:registrar', datos),
+  anularVenta: (datos) => ipcRenderer.invoke('ventas:anular', datos),
+  corregirVenta: (datos) => ipcRenderer.invoke('ventas:corregir', datos),
   listarVentas: () => ipcRenderer.invoke('ventas:listar'),
   obtenerResumen: () => ipcRenderer.invoke('dashboard:resumen'),
   obtenerReportePorDia: (rango) => ipcRenderer.invoke('reportes:porDia', rango),
@@ -25,4 +27,5 @@ contextBridge.exposeInMainWorld('api', {
   activarUsuario: (id) => ipcRenderer.invoke('usuarios:activar', id),
   desactivarUsuario: (id) => ipcRenderer.invoke('usuarios:desactivar', id),
   restablecerClaveUsuario: (id, password) => ipcRenderer.invoke('usuarios:restablecerClave', id, password),
+  consultarKardex: (filtros) => ipcRenderer.invoke('kardex:consultar', filtros),
 });

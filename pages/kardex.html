@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kardex — TiendaApp SENA</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <style>
+    .kardex-filtros { display:flex; flex-wrap:wrap; align-items:end; gap:12px; }
+    .kardex-campo { min-width:180px; flex:1; }
+    .kardex-campo label { display:block; font-size:12px; color:var(--gray-500); margin-bottom:6px; }
+    .kardex-resumen { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin:20px 0; }
+    .kardex-fila { overflow-wrap:anywhere; }
+    @media(max-width:650px) { .kardex-filtros { align-items:stretch; } .kardex-campo { min-width:100%; } }
+  </style>
+</head>
+<body>
+<div class="app-wrapper">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content">
+    <header class="topbar"><div class="topbar-left"><h1>Kardex de inventario</h1><p id="topbar-date"></p></div></header>
+    <div class="page-body">
+      <div class="proto-banner">📒 Consulta el historial de entradas, salidas, ventas y ajustes de cada producto.</div>
+      <section class="card mb-4"><div class="card-body">
+        <div class="kardex-filtros">
+          <div class="kardex-campo"><label for="buscar-producto">Buscar producto</label><input id="buscar-producto" type="search" placeholder="Nombre del producto…" autocomplete="off" /></div>
+          <div class="kardex-campo"><label for="producto-kardex">Producto</label><select id="producto-kardex"><option value="">Selecciona un producto…</option></select></div>
+          <div class="kardex-campo"><label for="codigo-kardex">Escanear código de barras</label><input id="codigo-kardex" type="text" placeholder="Escanea y presiona Enter" autocomplete="off" /></div>
+        </div>
+        <div class="kardex-filtros" style="margin-top:16px">
+          <button class="btn btn-ghost btn-sm" type="button" onclick="aplicarRapido(30)">Últimos 30 días</button>
+          <button class="btn btn-ghost btn-sm" type="button" onclick="aplicarRapido(90)">Últimos 90 días</button>
+          <div class="kardex-campo" style="flex:0 1 170px"><label for="desde-kardex">Desde</label><input type="date" id="desde-kardex" /></div>
+          <div class="kardex-campo" style="flex:0 1 170px"><label for="hasta-kardex">Hasta</label><input type="date" id="hasta-kardex" /></div>
+          <button class="btn btn-primary" id="btn-consultar" type="button">Consultar</button>
+        </div>
+      </div></section>
+      <div id="kardex-producto-titulo" class="card-title" style="margin-bottom:10px"></div>
+      <div id="resumen-kardex" class="kardex-resumen"></div>
+      <section class="card"><div class="card-header"><span class="card-title">Movimientos</span><span id="badge-truncado"></span></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Fecha</th><th>Detalle</th><th>Entrada</th><th>Salida</th><th>Saldo</th><th>Usuario</th></tr></thead>
+          <tbody id="tbody-kardex"><tr><td colspan="6"><div class="empty-state"><p>Selecciona un producto para consultar sus movimientos.</p></div></td></tr></tbody>
+        </table></div>
+      </section>
+    </div>
+  </main>
+</div>
+<div id="toast-container"></div>
+<script src="../js/store.js"></script><script src="../js/ui.js"></script>
+<script>
+let productos = [];
+
+function fechaBogota() {
+  const p = new Intl.DateTimeFormat('en-CA', { timeZone:'America/Bogota', year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(new Date());
+  const v = Object.fromEntries(p.map(item => [item.type, item.value]));
+  return `${v.year}-${v.month}-${v.day}`;
+}
+
+function moverFecha(fecha, delta) {
+  const date = new Date(`${fecha}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + delta);
+  return date.toISOString().slice(0, 10);
+}
+
+function mensajeError(error) { return String(error?.message ?? error).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''); }
+
+function formatearFechaBogota(iso) {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('es-CO', {
+    timeZone:'America/Bogota', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', hourCycle:'h23',
+  }).format(date);
+}
+
+function renderOpcionesProducto() {
+  const q = document.getElementById('buscar-producto').value.trim().toLocaleLowerCase('es-CO');
+  const select = document.getElementById('producto-kardex');
+  const seleccionado = select.value;
+  select.replaceChildren(new Option('Selecciona un producto…', ''));
+  productos.filter(p => !q || p.nombre.toLocaleLowerCase('es-CO').includes(q) || String(p.codigoBarras ?? '').toLowerCase().includes(q))
+    .forEach(p => select.add(new Option(`${p.nombre}${p.codigoBarras ? ` · ${p.codigoBarras}` : ''}`, String(p.id))));
+  if (productos.some(p => String(p.id) === seleccionado) && [...select.options].some(o => o.value === seleccionado)) select.value = seleccionado;
+}
+
+function aplicarRapido(dias) {
+  const hasta = fechaBogota();
+  document.getElementById('desde-kardex').value = moverFecha(hasta, -(dias - 1));
+  document.getElementById('hasta-kardex').value = hasta;
+  consultarKardex();
+}
+
+function renderResumen(resumen) {
+  document.getElementById('resumen-kardex').innerHTML = `
+    <div class="stat-card blue"><div class="stat-icon">📦</div><div><div class="stat-label">Saldo inicial del rango</div><div class="stat-value">${Number(resumen.saldoInicial)}</div></div></div>
+    <div class="stat-card green"><div class="stat-icon">📥</div><div><div class="stat-label">Total entradas</div><div class="stat-value">${Number(resumen.totalEntradas)}</div></div></div>
+    <div class="stat-card red"><div class="stat-icon">📤</div><div><div class="stat-label">Total salidas</div><div class="stat-value">${Number(resumen.totalSalidas)}</div></div></div>
+    <div class="stat-card blue"><div class="stat-icon">🧮</div><div><div class="stat-label">Saldo final del rango</div><div class="stat-value">${Number(resumen.saldoFinal)}</div></div></div>`;
+}
+
+function nombreTipo(tipo) {
+  return ({ inicial:'Stock inicial', entrada:'Entrada', salida:'Salida', manual:'Ajuste manual', venta:'Venta', anulacion:'Anulación' })[tipo] ?? tipo;
+}
+
+function renderFilas(filas) {
+  const tbody = document.getElementById('tbody-kardex');
+  if (!filas.length) {
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📒</div><p>No hay movimientos de este producto en el rango seleccionado.</p></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = filas.map(fila => {
+    const detalle = `${nombreTipo(fila.tipo)}${fila.motivo ? ` · ${fila.motivo}` : ''}${fila.ventaNumero ? ` · ${fila.ventaNumero}` : ''}`;
+    return `<tr class="kardex-fila">
+      <td class="text-sm">${escapeHtml(formatearFechaBogota(fila.fecha))}</td>
+      <td>${escapeHtml(detalle)}</td><td>${Number(fila.entrada) || '—'}</td><td>${Number(fila.salida) || '—'}</td>
+      <td class="fw-600">${Number(fila.saldo)}</td><td>${escapeHtml(fila.usuario || '—')}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function consultarKardex() {
+  const productoId = Number(document.getElementById('producto-kardex').value);
+  if (!Number.isSafeInteger(productoId) || productoId <= 0) {
+    showToast('Selecciona un producto.', 'warning');
+    return;
+  }
+  const desde = document.getElementById('desde-kardex').value;
+  const hasta = document.getElementById('hasta-kardex').value;
+  if (!desde || !hasta) { showToast('Selecciona las fechas del rango.', 'warning'); return; }
+  try {
+    const resultado = await window.api.consultarKardex({ productoId, desde, hasta });
+    const producto = productos.find(p => Number(p.id) === productoId);
+    document.getElementById('kardex-producto-titulo').textContent = producto ? `Producto: ${producto.nombre}` : '';
+    renderResumen(resultado.resumen);
+    renderFilas(resultado.filas);
+    document.getElementById('badge-truncado').innerHTML = resultado.truncado
+      ? '<span class="badge badge-warning">Se muestran los primeros 2.000 movimientos; el resumen incluye todo el rango.</span>' : '';
+  } catch (error) { showToast(mensajeError(error), 'error'); }
+}
+
+async function procesarCodigo(event) {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  const campo = event.currentTarget;
+  const codigo = campo.value.trim();
+  if (!codigo) return;
+  try {
+    const producto = await window.api.buscarProductoPorCodigo(codigo);
+    if (!producto) { showToast('No se encontró un producto activo con ese código.', 'warning'); return; }
+    if (!productos.some(p => Number(p.id) === Number(producto.id))) productos.push(producto);
+    renderOpcionesProducto();
+    document.getElementById('producto-kardex').value = String(producto.id);
+    await consultarKardex();
+  } catch (error) { showToast(mensajeError(error), 'error'); }
+  finally { campo.value = ''; campo.focus(); }
+}
+
+document.getElementById('buscar-producto').addEventListener('input', renderOpcionesProducto);
+document.getElementById('producto-kardex').addEventListener('change', consultarKardex);
+document.getElementById('btn-consultar').addEventListener('click', consultarKardex);
+document.getElementById('codigo-kardex').addEventListener('keydown', procesarCodigo);
+
+(async () => {
+  if (!await requireAuth()) return;
+  await buildSidebar('kardex');
+  try {
+    productos = await window.api.listarProductos();
+    renderOpcionesProducto();
+    const hoy = fechaBogota();
+    document.getElementById('desde-kardex').value = moverFecha(hoy, -29);
+    document.getElementById('hasta-kardex').value = hoy;
+    const directo = new URLSearchParams(window.location.search).get('producto');
+    if (directo && productos.some(p => String(p.id) === directo)) {
+      document.getElementById('producto-kardex').value = directo;
+      await consultarKardex();
+    }
+  } catch (error) { showToast(mensajeError(error), 'error'); }
+})();
+</script>
+</body>
+</html>

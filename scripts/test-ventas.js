@@ -61,7 +61,7 @@ probar('venta correcta descuenta stock y registra movimiento', ({ db, ids, invoc
   assert.equal(venta.total, 20000);
   assert.equal(venta.metodoPago, 'tarjeta');
   assert.equal(db.prepare('SELECT stock FROM productos WHERE id = ?').get(ids.camisa).stock, 3);
-  const mov = db.prepare('SELECT * FROM movimientos_inventario WHERE producto_id = ?').get(ids.camisa);
+  const mov = db.prepare("SELECT * FROM movimientos_inventario WHERE producto_id = ? AND tipo = 'venta'").get(ids.camisa);
   assert.equal(mov.tipo, 'venta');
   assert.equal(mov.diferencia, -2);
   assert.equal(mov.stock_anterior, 5);
@@ -79,7 +79,7 @@ probar('stock insuficiente rechaza toda la venta y revierte cambios', ({ db, ids
   }), /Gorra.*disponible 1.*solicitado 2/);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM ventas').get().n, 0);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM venta_items').get().n, 0);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM movimientos_inventario').get().n, 0);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM movimientos_inventario WHERE tipo = 'venta'").get().n, 0);
   assert.equal(db.prepare('SELECT stock FROM productos WHERE id = ?').get(ids.camisa).stock, 5);
   assert.equal(db.prepare('SELECT stock FROM productos WHERE id = ?').get(ids.gorra).stock, 1);
 });

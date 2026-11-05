@@ -14,21 +14,10 @@ db.exec(`
 require('./productos').crearTablasProductos(db);
 require('./sesion').crearTablaUsuarios(db);
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS movimientos_inventario (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    producto_id INTEGER NOT NULL REFERENCES productos(id),
-    tipo TEXT NOT NULL CHECK (tipo IN ('entrada','salida','manual','venta')),
-    diferencia INTEGER NOT NULL,
-    stock_anterior INTEGER NOT NULL CHECK (stock_anterior >= 0),
-    stock_nuevo INTEGER NOT NULL CHECK (stock_nuevo >= 0),
-    motivo TEXT NOT NULL DEFAULT '',
-    fecha TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-  );
-`);
-
 require('./ventas').crearTablasVentas(db);
 require('./sesion').migrarVentasUsuario(db);
+const kardex = require('./kardex');
+kardex.asegurarEsquemaMovimientos(db);
 
 // SOLO DESARROLLO: datos de demostración si la tabla está vacía (luego lo quitamos)
 const { n } = db.prepare('SELECT COUNT(*) AS n FROM productos').get();
@@ -57,5 +46,7 @@ if (n === 0) {
     throw e;
   }
 }
+
+kardex.conciliarSaldosExistentes(db);
 
 module.exports = db;

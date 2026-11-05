@@ -1,7 +1,12 @@
 const registrarSesion = require('../sesion').registrarSesion;
+const kardex = require('../kardex');
+const { crearTablasVentas } = require('../ventas');
 
 function autenticarAdminPrueba(ipcMain, handlers, db) {
   registrarSesion(ipcMain, db);
+  crearTablasVentas(db);
+  kardex.asegurarEsquemaMovimientos(db);
+  kardex.conciliarSaldosExistentes(db);
   const invocar = (canal, ...args) => {
     const handler = handlers.get(canal);
     if (!handler) throw new Error(`No se registró el canal ${canal}`);

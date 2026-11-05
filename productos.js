@@ -93,22 +93,52 @@ module.exports = function registrarProductos(ipcMain, db) {
   handle(ipcMain, 'productos:listar', ['administrador', 'vendedor'], () =>
     db.prepare(`${SELECT} WHERE activo = 1 ORDER BY nombre`).all());
 
-  handle(ipcMain, 'productos:crear', ['administrador'], (_, sesion, datos) => {
+  handle(ipcMain, 'productos:crear', ['administrador', 'vendedor'], (_, sesion, datos) => {
     const p = validar(datos);
     validarCodigoDisponible(db, p.codigoBarras);
-    const r = ejecutarConErrorCodigo(db, p.codigoBarras, () => db.prepare(
-      'INSERT INTO productos (nombre, categoria, precio, stock, stock_min, descripcion, codigo_barras) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(p.nombre, p.categoria, p.precio, p.stock, p.stockMin, p.descripcion, p.codigoBarras));
-    return db.prepare(`${SELECT} WHERE id = ?`).get(Number(r.lastInsertRowid));
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const r = ejecutarConErrorCodigo(db, p.codigoBarras, () => db.prepare(
+        'INSERT INTO productos (nombre, categoria, precio, stock, stock_min, descripcion, codigo_barras) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).run(p.nombre, p.categoria, p.precio, p.stock, p.stockMin, p.descripcion, p.codigoBarras));
+      const id = Number(r.lastInsertRowid);
+      if (p.stock > 0) {
+        db.prepare(`
+          INSERT INTO movimientos_inventario
+            (producto_id, usuario_id, venta_id, tipo, diferencia, stock_anterior, stock_nuevo, motivo)
+          VALUES (?, ?, NULL, 'inicial', ?, 0, ?, 'Stock inicial')
+        `).run(id, sesion.id, p.stock, p.stock);
+      }
+      db.exec('COMMIT');
+      return db.prepare(`${SELECT} WHERE id = ?`).get(id);
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
   });
 
   handle(ipcMain, 'productos:actualizar', ['administrador'], (_, sesion, id, datos) => {
     const p = validar(datos);
     validarCodigoDisponible(db, p.codigoBarras, id);
-    ejecutarConErrorCodigo(db, p.codigoBarras, () => db.prepare(
-      'UPDATE productos SET nombre=?, categoria=?, precio=?, stock=?, stock_min=?, descripcion=?, codigo_barras=? WHERE id=? AND activo=1'
-    ).run(p.nombre, p.categoria, p.precio, p.stock, p.stockMin, p.descripcion, p.codigoBarras, id));
-    return db.prepare(`${SELECT} WHERE id = ?`).get(id);
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const anterior = db.prepare('SELECT stock FROM productos WHERE id = ? AND activo = 1').get(id);
+      ejecutarConErrorCodigo(db, p.codigoBarras, () => db.prepare(
+        'UPDATE productos SET nombre=?, categoria=?, precio=?, stock=?, stock_min=?, descripcion=?, codigo_barras=? WHERE id=? AND activo=1'
+      ).run(p.nombre, p.categoria, p.precio, p.stock, p.stockMin, p.descripcion, p.codigoBarras, id));
+      if (anterior && Number(anterior.stock) !== p.stock) {
+        db.prepare(`
+          INSERT INTO movimientos_inventario
+            (producto_id, usuario_id, venta_id, tipo, diferencia, stock_anterior, stock_nuevo, motivo)
+          VALUES (?, ?, NULL, 'manual', ?, ?, ?, 'Edición de producto')
+        `).run(id, sesion.id, p.stock - Number(anterior.stock), Number(anterior.stock), p.stock);
+      }
+      db.exec('COMMIT');
+      return db.prepare(`${SELECT} WHERE id = ?`).get(id);
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
   });
 
   handle(ipcMain, 'productos:stockBajo', ['administrador', 'vendedor'], () =>

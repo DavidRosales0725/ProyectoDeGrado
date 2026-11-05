@@ -25,6 +25,7 @@ app.whenReady().then(() => {
   require("./dashboard")(ipcMain, db);
   require("./reportes")(ipcMain, db);
   require("./usuarios")(ipcMain, db);
+  require("./kardex")(ipcMain, db);
   crearVentana();
 });
 

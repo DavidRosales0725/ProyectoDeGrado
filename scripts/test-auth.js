@@ -5,6 +5,7 @@ const inventario = require('../inventario');
 const ventas = require('../ventas');
 const dashboard = require('../dashboard');
 const reportes = require('../reportes');
+const kardex = require('../kardex');
 const registrarSesion = require('../sesion').registrarSesion;
 const registrarUsuarios = require('../usuarios');
 const { crearTablasProductos } = productos;
@@ -38,11 +39,14 @@ const ipcFalso = { handle(canal, fn) {
 try {
   registrarSesion(ipcFalso, db);
   crearTablasVentas(db);
+  kardex.asegurarEsquemaMovimientos(db);
+  kardex.conciliarSaldosExistentes(db);
   productos(ipcFalso, db);
   inventario(ipcFalso, db);
   ventas(ipcFalso, db);
   dashboard(ipcFalso, db);
   reportes(ipcFalso, db);
+  kardex(ipcFalso, db);
   registrarUsuarios(ipcFalso, db);
   const invocar = (canal, ...args) => {
     const fn = handlers.get(canal);
@@ -102,12 +106,18 @@ try {
   assert.equal(invocar('ventas:listar')[0].numero, ventaVendedor.numero);
   assert.equal(invocar('ventas:listar', { rol:'administrador' }).length, 1);
   const canalesAdmin = [
-    'productos:crear', 'productos:actualizar', 'productos:eliminar', 'inventario:ajustar',
+    'productos:actualizar', 'productos:eliminar',
     'dashboard:resumen', 'reportes:porDia', 'reportes:ventasDelDia',
     'usuarios:listar', 'usuarios:crear', 'usuarios:cambiarRol', 'usuarios:activar',
     'usuarios:desactivar', 'usuarios:restablecerClave',
   ];
   for (const canal of canalesAdmin) assert.throws(() => invocar(canal), /No tienes permiso/);
+  const productoVendedor = invocar('productos:crear', { nombre:'Producto vendedor', categoria:'Prueba', descripcion:'', precio:500, stock:4, stockMin:1 });
+  invocar('inventario:ajustar', { productoId:productoVendedor.id, tipo:'entrada', cantidad:1, motivo:'Reposición' });
+  invocar('inventario:ajustar', { productoId:productoVendedor.id, tipo:'salida', cantidad:1, motivo:'Merma' });
+  assert.throws(() => invocar('inventario:ajustar', { productoId:productoVendedor.id, tipo:'manual', cantidad:2, motivo:'Corrección' }), /No tienes permiso/);
+  assert.throws(() => invocar('inventario:ajustar', { productoId:productoVendedor.id, tipo:'entrada', cantidad:1 }), /motivo/i);
+  assert.equal(invocar('kardex:consultar', { productoId:productoVendedor.id }).productoId, productoVendedor.id);
   assert.throws(() => invocar('auth:login', { usuario:'vendedora', password:'incorrecta' }), /Usuario o contraseña incorrectos/);
   console.log('✅ vendedor puede vender/listar catálogo, ve solo sus ventas y no accede a canales administrativos');
 

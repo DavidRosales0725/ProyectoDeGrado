@@ -142,7 +142,7 @@ function renderVentasRecientes(ventas) {
       <td>${escapeHtml(v.cliente)}</td>
       <td class="text-muted text-sm">${escapeHtml(formatFecha(v.fecha))}</td>
       <td class="fw-600" style="color:var(--success)">${formatPeso(Number(v.total))}</td>
-      <td><span class="badge badge-success">✓ ${escapeHtml(v.estado)}</span></td>
+      <td><span class="badge ${v.estado === 'anulada' ? 'badge-danger' : 'badge-success'}">${v.estado === 'anulada' ? 'Anulada' : 'Completada'}</span></td>
     </tr>
   `).join('');
 }

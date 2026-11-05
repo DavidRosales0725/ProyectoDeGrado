@@ -69,7 +69,7 @@
                     <th>Stock mínimo</th>
                     <th>Nivel</th>
                     <th>Estado</th>
-                    <th>Acción</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody id="tbody-inv"></tbody>
@@ -116,12 +116,14 @@
               />
             </div>
             <div class="form-group full">
-              <label>Motivo</label>
+              <label>Motivo *</label>
               <input
                 type="text"
                 id="ajuste-motivo"
                 placeholder="Ej: Recepción de mercancía, devolución…"
                 maxlength="200"
+                minlength="3"
+                required
               />
             </div>
           </div>
@@ -260,8 +262,10 @@ function renderInventario() {
         </div>
       </td>
       <td>${bdg}</td>
-      <td>
-        ${esAdministrador ? `<button class="btn btn-ghost btn-sm" onclick="abrirAjuste(${Number(p.id)})">📥 Ajustar</button>` : '—'}
+      <td><div class="flex gap-2" style="flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="abrirAjuste(${Number(p.id)})">📥 Ajustar</button>
+        <a class="btn btn-primary btn-sm" href="kardex.html?producto=${Number(p.id)}">📒 Kardex</a>
+      </div>
       </td>
     </tr>`;
   }).join('');
@@ -324,6 +328,10 @@ async function aplicarAjuste() {
     showToast('Selecciona un producto y una cantidad válida.', 'warning');
     return;
   }
+  if (motivo.length < 3) {
+    showToast('Escribe un motivo de al menos 3 caracteres.', 'warning');
+    return;
+  }
 
   const p = productos.find(x => x.id === prodId);
 
@@ -350,8 +358,8 @@ async function aplicarAjuste() {
  (async () => {
   if (!await requireAuth()) return;
   esAdministrador = sesionActual.rol === 'administrador';
-  document.getElementById('btn-ajustar-stock').hidden = !esAdministrador;
-  if (!esAdministrador) document.getElementById('modal-ajuste').remove();
+  document.getElementById('btn-ajustar-stock').hidden = false;
+  if (!esAdministrador) document.querySelector('#ajuste-tipo option[value="manual"]').remove();
   await buildSidebar('inventario');
   await cargarProductos();
   renderStats();

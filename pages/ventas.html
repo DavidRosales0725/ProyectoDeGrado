@@ -32,6 +32,10 @@
 
       <!-- NUEVA VENTA -->
       <div id="panel-nueva">
+        <div id="aviso-correccion" class="proto-banner" style="display:none" role="status">
+          <span id="texto-correccion"></span>
+          <button class="btn btn-ghost btn-sm" type="button" onclick="cancelarCorreccion()">Cancelar corrección</button>
+        </div>
         <div class="card mb-4">
           <div class="card-body">
             <div class="form-group">
@@ -139,6 +143,7 @@
                   <th>Fecha</th>
                   <th>Total</th>
                   <th>Estado</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody id="tbody-historial"></tbody>
@@ -149,6 +154,22 @@
 
     </div>
   </div>
+</div>
+
+<div class="modal-overlay" id="modal-anular" role="dialog" aria-modal="true" aria-labelledby="modal-anular-titulo">
+  <form class="modal" id="form-anular">
+    <div class="modal-header"><h3 id="modal-anular-titulo">Anular venta</h3><button class="modal-close" type="button" onclick="cerrarModalAnular()" aria-label="Cerrar">✕</button></div>
+    <div class="modal-body"><p id="texto-anular" class="mb-3"></p><label for="motivo-anular">Motivo *</label><input id="motivo-anular" type="text" maxlength="200" minlength="3" required /></div>
+    <div class="modal-footer"><button type="button" class="btn btn-ghost" onclick="cerrarModalAnular()">Cancelar</button><button type="submit" class="btn btn-danger">Anular venta</button></div>
+  </form>
+</div>
+
+<div class="modal-overlay" id="modal-motivo-correccion" role="dialog" aria-modal="true" aria-labelledby="modal-correccion-titulo">
+  <form class="modal" id="form-motivo-correccion">
+    <div class="modal-header"><h3 id="modal-correccion-titulo">Motivo de la corrección</h3><button class="modal-close" type="button" onclick="cerrarModalMotivoCorreccion()" aria-label="Cerrar">✕</button></div>
+    <div class="modal-body"><p>Se anulará la venta original y se registrará una nueva con el carrito actual.</p><label for="motivo-correccion">Motivo *</label><input id="motivo-correccion" type="text" maxlength="200" minlength="3" required /></div>
+    <div class="modal-footer"><button type="button" class="btn btn-ghost" onclick="cerrarModalMotivoCorreccion()">Cancelar</button><button type="submit" class="btn btn-primary">Confirmar corrección</button></div>
+  </form>
 </div>
 
 <!-- Modal: Agregar producto libre -->
@@ -221,6 +242,9 @@
 let productos = [];
 let carrito = [];
 let siguienteIdLibre = 0;
+let correccionActual = null;
+let ventaPendienteAnular = null;
+let ventasHistorial = [];
 
 function enfocarEscaner() {
   document.getElementById('codigo-barras')?.focus({ preventScroll: true });
@@ -498,6 +522,15 @@ function actualizarPago() {
 }
 
 async function confirmarVenta() {
+  if (correccionActual) {
+    openModal('modal-motivo-correccion');
+    document.getElementById('motivo-correccion').focus();
+    return;
+  }
+  await registrarVentaDesdeCarrito();
+}
+
+async function registrarVentaDesdeCarrito(motivoCorreccion = null) {
   if (!carrito.length) {
     showToast('Agrega al menos un producto al carrito.', 'warning');
     return;
@@ -516,7 +549,14 @@ async function confirmarVenta() {
 
   let venta;
   try {
-    venta = await window.api.registrarVenta(solicitud);
+    if (correccionActual) {
+      venta = await window.api.corregirVenta({ ...solicitud, ventaId: correccionActual.id, motivo: motivoCorreccion });
+      venta = venta.nueva;
+      correccionActual = null;
+      document.getElementById('aviso-correccion').style.display = 'none';
+    } else {
+      venta = await window.api.registrarVenta(solicitud);
+    }
   } catch (e) {
     showToast(mensajeError(e), 'error');
     return;
@@ -553,17 +593,94 @@ async function renderHistorial() {
   }
   document.getElementById('total-ventas-badge').textContent = `${ventas.length} ventas`;
   if (!ventas.length) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🛒</div><p>Aún no hay ventas registradas</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🛒</div><p>Aún no hay ventas registradas</p></div></td></tr>';
     return;
   }
-  tbody.innerHTML = ventas.map(v => `
+  const esAdmin = sesionActual?.rol === 'administrador';
+  const hoyBogota = fechaLocal(new Date());
+  ventasHistorial = ventas;
+  tbody.innerHTML = ventas.map(v => {
+    const puedeOperar = esAdmin || fechaLocal(new Date(v.fecha)) === hoyBogota;
+    const estadoAnulado = v.estado === 'anulada';
+    const detalleAnulacion = estadoAnulado
+      ? `<div class="text-sm text-muted">Anulada por ${escapeHtml(v.anuladaPorNombre || '—')} · ${escapeHtml(v.anuladaEn ? formatFecha(v.anuladaEn) : '—')}<br>${escapeHtml(v.motivoAnulacion || '')}</div>` : '';
+    const enlaces = [v.corrigeA ? `Corrige a ${escapeHtml(v.corrigeA)}` : '', v.corregidaPor ? `Corregida por ${escapeHtml(v.corregidaPor)}` : ''].filter(Boolean).join(' · ');
+    return `
     <tr><td><span class="fw-600">${escapeHtml(v.numero)}</span></td>
       <td>${escapeHtml(v.cliente)}</td>
       <td>${escapeHtml(v.usuario || '—')}</td>
       <td>${v.items.map(i => `<div class="text-sm">${i.esLibre ? '<span class="badge badge-info">Libre</span> ' : ''}${escapeHtml(i.nombre)} <span class="text-muted">×${Number(i.cantidad)}</span></div>`).join('')}</td>
       <td class="text-muted text-sm">${escapeHtml(formatFecha(v.fecha))}</td>
-      <td class="fw-600" style="color:var(--success)">${formatPeso(Number(v.total))}</td>
-      <td><span class="badge badge-success">✓ ${escapeHtml(v.estado)}</span></td></tr>`).join('');
+      <td class="fw-600" style="color:${estadoAnulado ? 'var(--gray-500)' : 'var(--success)'}">${formatPeso(Number(v.total))}</td>
+      <td><span class="badge ${estadoAnulado ? 'badge-danger' : 'badge-success'}">${estadoAnulado ? 'Anulada' : 'Completada'}</span>${detalleAnulacion}${enlaces ? `<div class="text-sm text-muted">${enlaces}</div>` : ''}</td>
+      <td>${!estadoAnulado && puedeOperar ? `<div class="flex gap-2"><button class="btn btn-ghost btn-sm" onclick="prepararCorreccion(${Number(v.id)})">Corregir</button><button class="btn btn-danger btn-sm" onclick="solicitarAnulacion(${Number(v.id)})">Anular</button></div>` : '—'}</td></tr>`;
+  }).join('');
+}
+
+function fechaLocal(fecha) {
+  const partes = new Intl.DateTimeFormat('en-CA', { timeZone:'America/Bogota', year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(fecha);
+  const valores = Object.fromEntries(partes.map(parte => [parte.type, parte.value]));
+  return `${valores.year}-${valores.month}-${valores.day}`;
+}
+
+async function prepararCorreccion(ventaId) {
+  try {
+    const ventas = await window.api.listarVentas();
+    const venta = ventas.find(v => Number(v.id) === Number(ventaId));
+    if (!venta || venta.estado !== 'completada') throw new Error('La venta ya no está disponible para corregir');
+    correccionActual = { id: Number(venta.id), numero: venta.numero };
+    carrito = venta.items.map(item => item.esLibre
+      ? { libre:true, libreId:++siguienteIdLibre, productoId:null, nombre:item.nombre, precioUnit:Number(item.precioUnit), qty:Number(item.cantidad), stockMax:1000000 }
+      : { productoId:Number(item.productoId), nombre:item.nombre, precioUnit:Number(item.precioUnit), qty:Number(item.cantidad), stockMax:1000000 });
+    document.getElementById('cliente-nombre').value = venta.cliente;
+    document.getElementById('metodo-pago').value = venta.metodoPago;
+    document.getElementById('monto-recibido').value = venta.metodoPago === 'efectivo' ? venta.montoRecibido : '';
+    document.getElementById('texto-correccion').textContent = `Corrigiendo ${venta.numero}: al guardar se anulará la original.`;
+    document.getElementById('aviso-correccion').style.display = 'flex';
+    showTab('nueva'); renderCarrito(); renderCatalogo(); actualizarPago(); enfocarEscaner();
+  } catch (error) { showToast(mensajeError(error), 'error'); }
+}
+
+function cancelarCorreccion() {
+  correccionActual = null;
+  document.getElementById('aviso-correccion').style.display = 'none';
+  limpiarCarrito();
+  showTab('nueva');
+  enfocarEscaner();
+}
+
+function solicitarAnulacion(ventaId) {
+  ventaPendienteAnular = Number(ventaId);
+  const venta = ventasHistorial.find(v => Number(v.id) === ventaPendienteAnular);
+  const numero = venta?.numero || `#${ventaPendienteAnular}`;
+  document.getElementById('texto-anular').textContent = `Venta ${numero}. Esta acción devolverá al inventario las unidades del catálogo.`;
+  document.getElementById('motivo-anular').value = '';
+  openModal('modal-anular');
+  document.getElementById('motivo-anular').focus();
+}
+
+function cerrarModalAnular() { closeModal('modal-anular'); ventaPendienteAnular = null; }
+function cerrarModalMotivoCorreccion() { closeModal('modal-motivo-correccion'); }
+
+async function enviarAnulacion(event) {
+  event.preventDefault();
+  const motivo = document.getElementById('motivo-anular').value.trim();
+  if (motivo.length < 3) { showToast('El motivo debe tener entre 3 y 200 caracteres.', 'warning'); return; }
+  try {
+    await window.api.anularVenta({ ventaId:ventaPendienteAnular, motivo });
+    cerrarModalAnular();
+    showToast('Venta anulada y stock devuelto.', 'success');
+    await renderHistorial(); await cargarProductos(); renderCatalogo();
+  } catch (error) { showToast(mensajeError(error), 'error'); }
+}
+
+async function enviarMotivoCorreccion(event) {
+  event.preventDefault();
+  const motivo = document.getElementById('motivo-correccion').value.trim();
+  if (motivo.length < 3) { showToast('El motivo debe tener entre 3 y 200 caracteres.', 'warning'); return; }
+  cerrarModalMotivoCorreccion();
+  await registrarVentaDesdeCarrito(motivo);
+  document.getElementById('motivo-correccion').value = '';
 }
 
 (async () => {
@@ -579,6 +696,8 @@ document.getElementById('form-producto-libre').addEventListener('submit', event 
   event.preventDefault();
   agregarProductoLibre();
 });
+document.getElementById('form-anular').addEventListener('submit', enviarAnulacion);
+document.getElementById('form-motivo-correccion').addEventListener('submit', enviarMotivoCorreccion);
 document.getElementById('modal-producto-libre').addEventListener('click', event => {
   if (event.target === event.currentTarget) cerrarModalProductoLibre();
 });

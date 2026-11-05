@@ -278,7 +278,7 @@ document.querySelector('[onclick="openModal(\'modal-producto\')"]').addEventList
  (async () => {
   if (!await requireAuth()) return;
   esAdministrador = sesionActual.rol === 'administrador';
-  document.getElementById('btn-agregar-producto').hidden = !esAdministrador;
+  document.getElementById('btn-agregar-producto').hidden = false;
   await buildSidebar('productos');
   await cargarProductos();
   renderTabla();

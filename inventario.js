@@ -3,7 +3,7 @@ const { LIMITE_STOCK, MAX_MOTIVO, validarTextoUnaLinea } = require('./limites');
 const { handle } = require('./autorizacion');
 
 module.exports = function registrarInventario(ipcMain, db) {
-    handle(ipcMain, 'inventario:ajustar', ['administrador'], (_, sesion, datos) => {
+    handle(ipcMain, 'inventario:ajustar', ['administrador', 'vendedor'], (_, sesion, datos) => {
         const productoId = Number(datos?.productoId);
         const tipo = String(datos?.tipo ?? '');
         const cantidad = Number(datos?.cantidad);
@@ -11,6 +11,10 @@ module.exports = function registrarInventario(ipcMain, db) {
 
         if (!Number.isInteger(productoId)) throw new Error('Producto inválido');
         if (!['entrada', 'salida', 'manual'].includes(tipo)) throw new Error('Tipo de ajuste inválido');
+        if (sesion.rol === 'vendedor' && tipo === 'manual') {
+            throw new Error('No tienes permiso para hacer ajustes manuales');
+        }
+        if (motivo.length < 3) throw new Error('El motivo es obligatorio y debe tener al menos 3 caracteres');
         if (!Number.isSafeInteger(cantidad) || cantidad < 0) throw new Error('La cantidad debe ser un entero seguro mayor o igual a 0');
         if (cantidad > LIMITE_STOCK) throw new Error('La cantidad no puede superar 1.000.000 de unidades');
         if (tipo !== 'manual' && cantidad === 0) throw new Error('La cantidad debe ser mayor a 0');
@@ -32,9 +36,9 @@ module.exports = function registrarInventario(ipcMain, db) {
             db.prepare('UPDATE productos SET stock = ? WHERE id = ?').run(nuevo, productoId);
             db.prepare(
                 `INSERT INTO movimientos_inventario
-         (producto_id, tipo, diferencia, stock_anterior, stock_nuevo, motivo)
-         VALUES (?, ?, ?, ?, ?, ?)`
-            ).run(productoId, tipo, nuevo - p.stock, p.stock, nuevo, motivo);
+         (producto_id, usuario_id, venta_id, tipo, diferencia, stock_anterior, stock_nuevo, motivo)
+         VALUES (?, ?, NULL, ?, ?, ?, ?, ?)`
+            ).run(productoId, sesion.id, tipo, nuevo - p.stock, p.stock, nuevo, motivo);
 
             db.exec('COMMIT');
             return { stockAnterior: p.stock, stockNuevo: nuevo };

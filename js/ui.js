@@ -67,6 +67,7 @@ async function buildSidebar(activeKey) {
     { key: 'productos',  href: '../pages/productos.html', icon: '📦', label: 'Productos'   },
     { key: 'inventario', href: '../pages/inventario.html',icon: '🗄️',  label: 'Inventario'  },
     { key: 'ventas',     href: '../pages/ventas.html',    icon: '🛒', label: 'Ventas'      },
+    { key: 'kardex',     href: '../pages/kardex.html',    icon: '📒', label: 'Kardex'      },
     ...(usuario.rol === 'administrador' ? [
       { key: 'reportes', href: '../pages/reportes.html', icon: '📈', label: 'Reportes' },
       { key: 'usuarios', href: '../pages/usuarios.html', icon: '👥', label: 'Usuarios' },

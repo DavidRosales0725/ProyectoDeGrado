@@ -63,6 +63,7 @@ try {
   console.log('✅ rechaza precio superior al límite');
 
   const productoInventario = invocar('productos:crear', datosProducto('Inventario al borde', { stock: 999999 }));
+  const movimientosAntes = db.prepare('SELECT COUNT(*) AS n FROM movimientos_inventario').get().n;
   assert.throws(
     () => invocar('inventario:ajustar', {
       productoId: productoInventario.id,
@@ -73,7 +74,7 @@ try {
     /stock resultante.*1\.000\.000/i,
   );
   assert.equal(db.prepare('SELECT stock FROM productos WHERE id = ?').get(productoInventario.id).stock, 999999);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM movimientos_inventario').get().n, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM movimientos_inventario').get().n, movimientosAntes);
   console.log('✅ rechaza una entrada que excede el máximo y conserva el stock');
 
   const listado = invocar('productos:listar');
