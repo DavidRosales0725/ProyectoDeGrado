@@ -236,13 +236,16 @@ function renderInventario() {
     const isLow  = p.stock > 0 && p.stock <= p.stockMin;
     const isOut  = p.stock === 0;
     const barCls = isOk ? 'high' : isLow ? 'medium' : 'low';
+    const miniatura = p.tieneImagen
+      ? `<img src="producto-img://p/${Number(p.id)}?v=${encodeURIComponent(p.imagenVersion || '')}" alt="Foto de ${escapeHtml(p.nombre)}" style="width:40px;height:40px;object-fit:cover;border-radius:6px" />`
+      : '<span aria-label="Sin foto" style="display:inline-flex;width:40px;height:40px;align-items:center;justify-content:center">📦</span>';
     const bdg    = isOk ? '<span class="badge badge-success">Disponible</span>'
                  : isLow ? '<span class="badge badge-warning">⚠️ Bajo</span>'
                  : '<span class="badge badge-danger">🔴 Agotado</span>';
     return `
     <tr>
       <td>
-        <div class="fw-600">${escapeHtml(p.nombre)}</div>
+        <div class="flex items-center gap-2"><span>${miniatura}</span><div class="fw-600">${escapeHtml(p.nombre)}</div></div>
         <div class="text-sm text-muted">${escapeHtml(p.descripcion) || '—'}</div>
       </td>
       <td><span class="badge badge-gray">${escapeHtml(p.categoria)}</span></td>

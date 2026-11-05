@@ -286,10 +286,13 @@ function renderCatalogo() {
   tbody.innerHTML = prods.map(p => {
     const id = Number(p.id);
     const enCarrito = carrito.find(c => c.productoId === id);
+    const miniatura = p.tieneImagen
+      ? `<img src="producto-img://p/${id}?v=${encodeURIComponent(p.imagenVersion || '')}" alt="Foto de ${escapeHtml(p.nombre)}" style="width:40px;height:40px;object-fit:cover;border-radius:6px" />`
+      : '<span aria-label="Sin foto" style="display:inline-flex;width:40px;height:40px;align-items:center;justify-content:center">📦</span>';
     return `
     <tr>
-      <td><div class="fw-600">${escapeHtml(p.nombre)}</div>
-          <div class="text-sm"><span class="badge badge-gray">${escapeHtml(p.categoria)}</span></div></td>
+      <td><div class="flex items-center gap-2"><span>${miniatura}</span><div><div class="fw-600">${escapeHtml(p.nombre)}</div>
+          <div class="text-sm"><span class="badge badge-gray">${escapeHtml(p.categoria)}</span></div></div></div></td>
       <td class="fw-600">${formatPeso(Number(p.precio))}</td>
       <td><span class="${p.stock <= p.stockMin ? 'text-sm' : ''}" style="color:${p.stock <= p.stockMin ? 'var(--warning)' : 'inherit'}">${Number(p.stock)} uds</span></td>
       <td>${enCarrito
@@ -488,7 +491,7 @@ function renderCarrito() {
 
   el.innerHTML = carrito.map(item => `
     <div class="cart-item">
-      <div class="cart-item-info"><div class="cart-item-name">${item.libre ? '<span class="badge badge-info">Libre</span> ' : ''}${escapeHtml(item.nombre)}</div>
+      <div class="cart-item-info">${!item.libre && productos.find(p => Number(p.id) === Number(item.productoId))?.tieneImagen ? `<img src="producto-img://p/${Number(item.productoId)}?v=${encodeURIComponent(productos.find(p => Number(p.id) === Number(item.productoId)).imagenVersion || '')}" alt="Foto de ${escapeHtml(item.nombre)}" style="width:40px;height:40px;object-fit:cover;border-radius:6px" />` : '<span aria-label="Sin foto" style="display:inline-flex;width:40px;height:40px;align-items:center;justify-content:center">📦</span>'}<div><div class="cart-item-name">${item.libre ? '<span class="badge badge-info">Libre</span> ' : ''}${escapeHtml(item.nombre)}</div>
         <div class="cart-item-price">${formatPeso(item.precioUnit)} c/u</div></div>
       <div class="qty-ctrl"><button class="qty-btn" onclick="${item.libre ? `cambiarQtyLibre(${item.libreId}, -1)` : `cambiarQty(${item.productoId}, -1)`}">−</button>
         <span class="qty-val">${Number(item.qty)}</span><button class="qty-btn" onclick="${item.libre ? `cambiarQtyLibre(${item.libreId}, 1)` : `cambiarQty(${item.productoId}, 1)`}">＋</button></div>

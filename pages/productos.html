@@ -111,6 +111,17 @@
           <label>Descripción</label>
           <input type="text" id="prod-desc" placeholder="Descripción breve del producto" maxlength="200" />
         </div>
+        <div class="form-group full">
+          <label>Foto del producto</label>
+          <div class="flex items-center gap-3" style="flex-wrap:wrap">
+            <img id="prod-foto-preview" alt="Vista previa de la foto del producto" hidden style="width:96px;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--gray-200)" />
+            <span id="prod-foto-placeholder" class="badge badge-gray" style="font-size:24px;padding:20px">📦</span>
+            <div class="flex gap-2">
+              <button class="btn btn-ghost btn-sm" type="button" onclick="elegirFotoProducto()">Elegir foto…</button>
+              <button class="btn btn-danger btn-sm" id="btn-quitar-foto" type="button" hidden onclick="quitarFotoProducto()">Quitar foto</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -127,6 +138,9 @@
 <script>
 let productos = [];
 let esAdministrador = false;
+let imagenPendiente = null;
+let quitarImagen = false;
+let productoFotoActual = null;
 
 // Quita el prefijo técnico que agrega Electron a los errores
 function mensajeError(e) {
@@ -170,10 +184,13 @@ function renderTabla() {
     const badgeTxt = stockOk ? 'Disponible'    : stockLow ? 'Stock bajo'    : 'Agotado';
     const id = Number(p.id);
 
+    const miniatura = p.tieneImagen
+      ? `<img src="producto-img://p/${id}?v=${encodeURIComponent(p.imagenVersion || '')}" alt="Foto de ${escapeHtml(p.nombre)}" style="width:40px;height:40px;object-fit:cover;border-radius:6px" />`
+      : '<span aria-label="Sin foto" style="display:inline-flex;width:40px;height:40px;align-items:center;justify-content:center">📦</span>';
     return `<tr>
       <td class="text-muted text-sm">${i + 1}</td>
       <td>
-        <div class="fw-600">${escapeHtml(p.nombre)}</div>
+        <div class="flex items-center gap-2"><span>${miniatura}</span><div class="fw-600">${escapeHtml(p.nombre)}</div></div>
         ${p.codigoBarras ? `<div class="text-sm text-muted">Código: ${escapeHtml(p.codigoBarras)}</div>` : ''}
         <div class="text-sm text-muted">${escapeHtml(p.descripcion) || '—'}</div>
       </td>
@@ -197,6 +214,8 @@ function renderTabla() {
 
 function limpiarModal() {
   ['prod-id','prod-nombre','prod-desc','prod-codigo-barras'].forEach(id => document.getElementById(id).value = '');
+  imagenPendiente = null; quitarImagen = false; productoFotoActual = null;
+  renderPreviewFoto();
   document.getElementById('prod-categoria').value = '';
   document.getElementById('prod-precio').value    = '';
   document.getElementById('prod-stock').value     = '';
@@ -215,6 +234,8 @@ function editarProducto(id) {
   document.getElementById('prod-stockmin').value  = p.stockMin;
   document.getElementById('prod-desc').value      = p.descripcion || '';
   document.getElementById('prod-codigo-barras').value = p.codigoBarras || '';
+  imagenPendiente = null; quitarImagen = false; productoFotoActual = p.tieneImagen ? { id:p.id, version:p.imagenVersion } : null;
+  renderPreviewFoto();
   document.getElementById('modal-title').textContent = 'Editar producto';
   openModal('modal-producto');
 }
@@ -236,6 +257,8 @@ async function guardarProducto() {
   }
 
   const datos = { nombre, categoria: cat, precio, stock, stockMin, descripcion: desc, codigoBarras };
+  if (imagenPendiente) datos.imagen = imagenPendiente;
+  if (quitarImagen) datos.quitarImagen = true;
 
   try {
     if (id) {
@@ -254,6 +277,33 @@ async function guardarProducto() {
   limpiarModal();
   await cargarProductos();
   renderTabla();
+}
+
+function renderPreviewFoto() {
+  const preview = document.getElementById('prod-foto-preview');
+  const placeholder = document.getElementById('prod-foto-placeholder');
+  const url = imagenPendiente || (!quitarImagen && productoFotoActual
+    ? `producto-img://p/${Number(productoFotoActual.id)}?v=${encodeURIComponent(productoFotoActual.version || '')}` : null);
+  preview.hidden = !url;
+  placeholder.hidden = Boolean(url);
+  if (url) preview.src = url; else preview.removeAttribute('src');
+  document.getElementById('btn-quitar-foto').hidden = !esAdministrador || (!imagenPendiente && !productoFotoActual);
+}
+
+async function elegirFotoProducto() {
+  try {
+    const dataUrl = await window.api.seleccionarImagenProducto();
+    if (!dataUrl) return;
+    imagenPendiente = dataUrl; quitarImagen = false; renderPreviewFoto();
+  } catch (error) { showToast(mensajeError(error), 'error'); }
+}
+
+function quitarFotoProducto() {
+  if (!esAdministrador) return;
+  imagenPendiente = null; quitarImagen = Boolean(document.getElementById('prod-id').value && productoFotoActual);
+  if (!document.getElementById('prod-id').value) quitarImagen = false;
+  if (quitarImagen) productoFotoActual = null;
+  renderPreviewFoto();
 }
 
 async function borrarProducto(id) {

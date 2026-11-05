@@ -6,6 +6,7 @@ const ventas = require('../ventas');
 const dashboard = require('../dashboard');
 const reportes = require('../reportes');
 const kardex = require('../kardex');
+const imagenes = require('../imagenes-productos');
 const registrarSesion = require('../sesion').registrarSesion;
 const registrarUsuarios = require('../usuarios');
 const { crearTablasProductos } = productos;
@@ -47,6 +48,10 @@ try {
   dashboard(ipcFalso, db);
   reportes(ipcFalso, db);
   kardex(ipcFalso, db);
+  imagenes.registrarSelectorImagen(ipcFalso, {
+    dialog: { showOpenDialog: async () => ({ canceled:true, filePaths:[] }) },
+    procesarImagen: buffer => ({ mime:'image/jpeg', datos:Buffer.from(buffer) }),
+  });
   registrarUsuarios(ipcFalso, db);
   const invocar = (canal, ...args) => {
     const fn = handlers.get(canal);

@@ -7,6 +7,7 @@ const {
   validarTextoUnaLinea,
 } = require('./limites');
 const { handle } = require('./autorizacion');
+const imagenes = require('./imagenes-productos');
 
 function crearTablasProductos(db) {
   db.exec(`
@@ -22,6 +23,8 @@ function crearTablasProductos(db) {
       codigo_barras TEXT
     );
   `);
+
+  imagenes.crearTablaProductoImagenes(db);
 
   const columnas = db.prepare('PRAGMA table_info(productos)').all();
   if (!columnas.some(columna => columna.name === 'codigo_barras')) {
@@ -61,7 +64,9 @@ function validar(p) {
 
 const SELECT = `SELECT id, nombre, categoria, precio, stock,
                        stock_min AS stockMin, descripcion,
-                       codigo_barras AS codigoBarras
+                       codigo_barras AS codigoBarras,
+                       EXISTS(SELECT 1 FROM producto_imagenes pi WHERE pi.producto_id = productos.id) AS tieneImagen,
+                       (SELECT pi.actualizado FROM producto_imagenes pi WHERE pi.producto_id = productos.id) AS imagenVersion
                 FROM productos`;
 
 function validarCodigoDisponible(db, codigoBarras, idActual = null) {
@@ -89,12 +94,15 @@ function ejecutarConErrorCodigo(db, codigoBarras, accion) {
   }
 }
 
-module.exports = function registrarProductos(ipcMain, db) {
+module.exports = function registrarProductos(ipcMain, db, opciones = {}) {
+  const procesarImagen = opciones.procesarImagen;
   handle(ipcMain, 'productos:listar', ['administrador', 'vendedor'], () =>
     db.prepare(`${SELECT} WHERE activo = 1 ORDER BY nombre`).all());
 
   handle(ipcMain, 'productos:crear', ['administrador', 'vendedor'], (_, sesion, datos) => {
     const p = validar(datos);
+    if (datos?.quitarImagen === true) throw new Error('No se puede quitar una imagen durante la creación del producto');
+    const imagen = datos?.imagen != null ? imagenes.normalizarImagen(procesarImagen, datos.imagen) : null;
     validarCodigoDisponible(db, p.codigoBarras);
     db.exec('BEGIN IMMEDIATE');
     try {
@@ -109,6 +117,7 @@ module.exports = function registrarProductos(ipcMain, db) {
           VALUES (?, ?, NULL, 'inicial', ?, 0, ?, 'Stock inicial')
         `).run(id, sesion.id, p.stock, p.stock);
       }
+      if (imagen) imagenes.guardarImagen(db, id, imagen);
       db.exec('COMMIT');
       return db.prepare(`${SELECT} WHERE id = ?`).get(id);
     } catch (error) {
@@ -119,6 +128,8 @@ module.exports = function registrarProductos(ipcMain, db) {
 
   handle(ipcMain, 'productos:actualizar', ['administrador'], (_, sesion, id, datos) => {
     const p = validar(datos);
+    if (datos?.imagen != null && datos?.quitarImagen === true) throw new Error('Elige una imagen o quítala, pero no ambas acciones a la vez');
+    const imagen = datos?.imagen != null ? imagenes.normalizarImagen(procesarImagen, datos.imagen) : null;
     validarCodigoDisponible(db, p.codigoBarras, id);
     db.exec('BEGIN IMMEDIATE');
     try {
@@ -133,6 +144,8 @@ module.exports = function registrarProductos(ipcMain, db) {
           VALUES (?, ?, NULL, 'manual', ?, ?, ?, 'Edición de producto')
         `).run(id, sesion.id, p.stock - Number(anterior.stock), Number(anterior.stock), p.stock);
       }
+      if (imagen) imagenes.guardarImagen(db, id, imagen);
+      if (datos?.quitarImagen === true) db.prepare('DELETE FROM producto_imagenes WHERE producto_id = ?').run(id);
       db.exec('COMMIT');
       return db.prepare(`${SELECT} WHERE id = ?`).get(id);
     } catch (error) {
