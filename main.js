@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, nativeImage, protocol } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, nativeImage, protocol, shell } = require("electron");
 const path = require("path");
 const imagenes = require('./imagenes-productos');
 
@@ -49,6 +49,9 @@ app.whenReady().then(() => {
   require("./reportes")(ipcMain, db);
   require("./usuarios")(ipcMain, db);
   require("./kardex")(ipcMain, db);
+  const respaldos = require('./respaldos');
+  respaldos.registrarRespaldos(ipcMain, { db, app, dialog, shell });
+  respaldos.programarRespaldosAutomaticos({ db, app });
   crearVentana();
 });
 

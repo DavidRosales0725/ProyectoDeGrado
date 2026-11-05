@@ -7,6 +7,7 @@ const dashboard = require('../dashboard');
 const reportes = require('../reportes');
 const kardex = require('../kardex');
 const imagenes = require('../imagenes-productos');
+const respaldos = require('../respaldos');
 const registrarSesion = require('../sesion').registrarSesion;
 const registrarUsuarios = require('../usuarios');
 const { crearTablasProductos } = productos;
@@ -51,6 +52,11 @@ try {
   imagenes.registrarSelectorImagen(ipcFalso, {
     dialog: { showOpenDialog: async () => ({ canceled:true, filePaths:[] }) },
     procesarImagen: buffer => ({ mime:'image/jpeg', datos:Buffer.from(buffer) }),
+  });
+  respaldos.registrarRespaldos(ipcFalso, {
+    db, app:{getPath:()=>require('node:os').tmpdir(),relaunch(){},exit(){}},
+    dialog:{showSaveDialog:async()=>({canceled:true}),showOpenDialog:async()=>({canceled:true})},
+    shell:{openPath:async()=>''},
   });
   registrarUsuarios(ipcFalso, db);
   const invocar = (canal, ...args) => {
@@ -115,6 +121,7 @@ try {
     'dashboard:resumen', 'reportes:porDia', 'reportes:ventasDelDia',
     'usuarios:listar', 'usuarios:crear', 'usuarios:cambiarRol', 'usuarios:activar',
     'usuarios:desactivar', 'usuarios:restablecerClave',
+    'respaldos:crear', 'respaldos:restaurar', 'respaldos:listarAutomaticos', 'respaldos:abrirCarpeta',
   ];
   for (const canal of canalesAdmin) assert.throws(() => invocar(canal), /No tienes permiso/);
   const productoVendedor = invocar('productos:crear', { nombre:'Producto vendedor', categoria:'Prueba', descripcion:'', precio:500, stock:4, stockMin:1 });

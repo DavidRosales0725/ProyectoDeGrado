@@ -70,6 +70,7 @@ async function buildSidebar(activeKey) {
     { key: 'kardex',     href: '../pages/kardex.html',    icon: '📒', label: 'Kardex'      },
     ...(usuario.rol === 'administrador' ? [
       { key: 'reportes', href: '../pages/reportes.html', icon: '📈', label: 'Reportes' },
+      { key: 'respaldos', href: '../pages/respaldos.html', icon: '💾', label: 'Respaldos' },
       { key: 'usuarios', href: '../pages/usuarios.html', icon: '👥', label: 'Usuarios' },
     ] : []),
   ];

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Respaldos — TiendaApp SENA</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <style>
+    .respaldo-acciones { display:flex; flex-wrap:wrap; gap:12px; }
+    .respaldo-aviso { margin:0 0 18px; padding:14px 16px; border-radius:10px; background:#eff6ff; color:#1e3a8a; }
+    .confirmacion-restaurar { color:#991b1b; background:#fef2f2; padding:14px; border-radius:8px; margin-bottom:16px; }
+    .confirmacion-restaurar strong { display:block; margin-bottom:6px; }
+    .tabla-respaldos td:last-child { text-align:right; }
+    .modal-campo { width:100%; margin-top:8px; }
+  </style>
+</head>
+<body>
+<div class="app-wrapper">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content">
+    <header class="topbar"><div class="topbar-left"><h1>Respaldos</h1><p id="topbar-date"></p></div></header>
+    <div class="page-body">
+      <p class="respaldo-aviso">Los respaldos automáticos se crean una vez al día y se conservan los siete más recientes.</p>
+      <section class="card mb-4">
+        <div class="card-header"><span class="card-title">Copias de seguridad</span></div>
+        <div class="card-body">
+          <div class="respaldo-acciones">
+            <button class="btn btn-primary" id="crear-respaldo" type="button">Crear respaldo ahora</button>
+            <button class="btn btn-danger" id="abrir-restaurar" type="button">Restaurar desde archivo</button>
+            <button class="btn btn-ghost" id="abrir-carpeta" type="button">Abrir carpeta</button>
+          </div>
+        </div>
+      </section>
+      <section class="card">
+        <div class="card-header"><span class="card-title">Respaldos automáticos</span><button class="btn btn-ghost btn-sm" id="actualizar-lista" type="button">Actualizar</button></div>
+        <div class="table-wrap">
+          <table class="tabla-respaldos"><thead><tr><th>Fecha</th><th>Nombre</th><th>Tamaño</th></tr></thead><tbody id="lista-respaldos"></tbody></table>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+<div class="modal-overlay" id="modal-restaurar" role="dialog" aria-modal="true" aria-labelledby="titulo-restaurar">
+  <section class="modal">
+    <div class="modal-header"><h3 id="titulo-restaurar">Restaurar respaldo</h3><button class="modal-close" type="button" aria-label="Cerrar" id="cerrar-modal">✕</button></div>
+    <div class="modal-body">
+      <div class="confirmacion-restaurar"><strong>Esta acción reemplazará TODOS los datos actuales.</strong>La aplicación creará una copia del estado actual y se reiniciará. Tendrás que iniciar sesión de nuevo.</div>
+      <label for="confirmar-palabra">Escribe <strong>RESTAURAR</strong> para habilitar la restauración.</label>
+      <input class="modal-campo" id="confirmar-palabra" type="text" autocomplete="off" />
+    </div>
+    <div class="modal-footer"><button class="btn btn-ghost" type="button" id="cancelar-restauracion">Cancelar</button><button class="btn btn-danger" type="button" id="confirmar-restauracion" disabled>Elegir archivo y restaurar</button></div>
+  </section>
+</div>
+<div id="toast-container"></div>
+<script src="../js/store.js"></script>
+<script src="../js/ui.js"></script>
+<script>
+function mensajeError(error) {
+  return String(error?.message ?? error).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+}
+function formatoTamano(bytes) {
+  const valor = Number(bytes);
+  if (!Number.isFinite(valor) || valor < 0) return 'Desconocido';
+  if (valor < 1024) return `${valor} B`;
+  if (valor < 1024 * 1024) return `${(valor / 1024).toFixed(1)} KB`;
+  return `${(valor / (1024 * 1024)).toFixed(1)} MB`;
+}
+async function cargarRespaldos() {
+  try {
+    const archivos = await window.api.listarRespaldosAutomaticos();
+    const cuerpo = document.getElementById('lista-respaldos');
+    cuerpo.innerHTML = archivos.length ? archivos.map(archivo => `
+      <tr><td>${escapeHtml(archivo.fecha)}</td><td>${escapeHtml(archivo.nombre)}</td><td>${escapeHtml(formatoTamano(archivo.tamano))}</td></tr>
+    `).join('') : '<tr><td colspan="3" class="text-muted">Todavía no hay respaldos automáticos.</td></tr>';
+  } catch (error) { showToast(mensajeError(error), 'error'); }
+}
+function cerrarModalRestaurar() {
+  closeModal('modal-restaurar');
+  document.getElementById('confirmar-palabra').value = '';
+  document.getElementById('confirmar-restauracion').disabled = true;
+}
+document.getElementById('crear-respaldo').addEventListener('click', async () => {
+  try {
+    const resultado = await window.api.crearRespaldo();
+    if (resultado) showToast(`Respaldo creado (${formatoTamano(resultado.tamano)}).`, 'success');
+  } catch (error) { showToast(mensajeError(error), 'error'); }
+});
+document.getElementById('abrir-carpeta').addEventListener('click', async () => {
+  try { await window.api.abrirCarpetaRespaldos(); }
+  catch (error) { showToast(mensajeError(error), 'error'); }
+});
+document.getElementById('actualizar-lista').addEventListener('click', cargarRespaldos);
+document.getElementById('abrir-restaurar').addEventListener('click', () => openModal('modal-restaurar'));
+document.getElementById('cerrar-modal').addEventListener('click', cerrarModalRestaurar);
+document.getElementById('cancelar-restauracion').addEventListener('click', cerrarModalRestaurar);
+document.getElementById('confirmar-palabra').addEventListener('input', event => {
+  document.getElementById('confirmar-restauracion').disabled = event.target.value !== 'RESTAURAR';
+});
+document.getElementById('confirmar-restauracion').addEventListener('click', async event => {
+  if (document.getElementById('confirmar-palabra').value !== 'RESTAURAR') return;
+  event.currentTarget.disabled = true;
+  try {
+    const resultado = await window.api.restaurarRespaldo();
+    if (resultado?.restaurado) showToast('Respaldo restaurado. La aplicación se reiniciará.', 'success');
+    cerrarModalRestaurar();
+  } catch (error) {
+    showToast(mensajeError(error), 'error');
+    event.currentTarget.disabled = false;
+  }
+});
+document.getElementById('modal-restaurar').addEventListener('click', event => {
+  if (event.target === event.currentTarget) cerrarModalRestaurar();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && document.getElementById('modal-restaurar').classList.contains('open')) cerrarModalRestaurar();
+});
+(async () => {
+  if (!await requireRol(['administrador'])) return;
+  await buildSidebar('respaldos');
+  await cargarRespaldos();
+})();
+</script>
+</body>
+</html>

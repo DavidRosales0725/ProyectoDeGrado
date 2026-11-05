@@ -29,4 +29,8 @@ contextBridge.exposeInMainWorld('api', {
   restablecerClaveUsuario: (id, password) => ipcRenderer.invoke('usuarios:restablecerClave', id, password),
   consultarKardex: (filtros) => ipcRenderer.invoke('kardex:consultar', filtros),
   seleccionarImagenProducto: () => ipcRenderer.invoke('imagenes:seleccionar'),
+  crearRespaldo: () => ipcRenderer.invoke('respaldos:crear'),
+  restaurarRespaldo: () => ipcRenderer.invoke('respaldos:restaurar'),
+  listarRespaldosAutomaticos: () => ipcRenderer.invoke('respaldos:listarAutomaticos'),
+  abrirCarpetaRespaldos: () => ipcRenderer.invoke('respaldos:abrirCarpeta'),
 });
