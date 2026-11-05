@@ -114,6 +114,30 @@ prueba('saldo y suma de movimientos concuerdan con el stock', ({ db, invocar }) 
   } finally { db.close(); }
 }
 
+{
+  const db = new DatabaseSync(':memory:');
+  try {
+    productos.crearTablasProductos(db);
+    require('../sesion').crearTablaUsuarios(db);
+    ventas.crearTablasVentas(db);
+    const kardex = require('../kardex');
+    kardex.asegurarEsquemaMovimientos(db);
+    db.exec("INSERT INTO productos(id,nombre,precio,stock) VALUES(501,'Corrupto grande',1,444444444444444416),(502,'Fuera del tope',1,1000001),(503,'Válido',1,8)");
+    db.exec("INSERT INTO movimientos_inventario(producto_id,tipo,diferencia,stock_anterior,stock_nuevo,motivo) VALUES(501,'manual',1,0,444444444444444416,'corrupto')");
+    const avisos = [];
+    const warnOriginal = console.warn;
+    console.warn = (...args) => avisos.push(args.join(' '));
+    try { kardex.conciliarSaldosExistentes(db); }
+    finally { console.warn = warnOriginal; }
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM movimientos_inventario WHERE producto_id=501').get().n, 1);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM movimientos_inventario WHERE producto_id=502').get().n, 0);
+    assert.equal(db.prepare('SELECT stock_nuevo FROM movimientos_inventario WHERE producto_id=503').get().stock_nuevo, 8);
+    assert.ok(avisos.some(aviso => aviso.includes('501')));
+    assert.ok(avisos.some(aviso => aviso.includes('502')));
+    console.log('✅ conciliación omite stocks corruptos y fuera del tope sin impedir el arranque');
+  } finally { db.close(); }
+}
+
 prueba('consulta rechaza rangos inválidos y mayores a 366 días', ({ invocar }) => {
   const p = invocar('productos:crear', { nombre:'Yuca', categoria:'Abarrotes', descripcion:'', precio:900, stock:2, stockMin:1 });
   assert.throws(() => invocar('kardex:consultar', { productoId:p.id, desde:'2026-02-30', hasta:'2026-03-01' }), /fecha/i);

@@ -1,5 +1,6 @@
 const { handle } = require('./autorizacion');
 const { fechaLocalBogota, validarFechaBogota, sumarDias, limitesFechaBogota } = require('./fechas');
+const { LIMITE_STOCK } = require('./limites');
 
 const MAX_FILAS = 2000;
 const MAX_DIAS = 366;
@@ -75,9 +76,9 @@ function conciliarSaldosExistentes(db) {
   if (!existe) throw new Error('La tabla de movimientos no existe');
   db.exec('BEGIN IMMEDIATE');
   try {
-    const productos = db.prepare('SELECT id, stock FROM productos ORDER BY id').all();
+    const productos = db.prepare('SELECT CAST(id AS TEXT) AS idTexto, CAST(stock AS TEXT) AS stockTexto FROM productos ORDER BY id').all();
     const ultimoMovimiento = db.prepare(`
-      SELECT fecha, stock_nuevo FROM movimientos_inventario
+      SELECT fecha, CAST(stock_nuevo AS TEXT) AS stockTexto FROM movimientos_inventario
       WHERE producto_id = ? ORDER BY fecha DESC, id DESC LIMIT 1
     `);
     const insertar = db.prepare(`
@@ -87,12 +88,22 @@ function conciliarSaldosExistentes(db) {
     `);
 
     for (const producto of productos) {
-      const ultimo = ultimoMovimiento.get(producto.id);
-      const stockActual = Number(producto.stock);
-      if (ultimo && Number(ultimo.stock_nuevo) === stockActual) continue;
-      const stockAnterior = ultimo ? Number(ultimo.stock_nuevo) : 0;
+      const productoId = Number(producto.idTexto);
+      const stockActual = Number(producto.stockTexto);
+      if (!Number.isSafeInteger(productoId) || productoId <= 0
+        || !Number.isSafeInteger(stockActual) || stockActual < 0 || stockActual > LIMITE_STOCK) {
+        console.warn(`Se omitió la conciliación del producto con id ${producto.idTexto}: id o stock inválido`);
+        continue;
+      }
+      const ultimo = ultimoMovimiento.get(productoId);
+      const stockAnterior = ultimo ? Number(ultimo.stockTexto) : 0;
+      if (ultimo && (!Number.isSafeInteger(stockAnterior) || stockAnterior < 0 || stockAnterior > LIMITE_STOCK)) {
+        console.warn(`Se omitió la conciliación del producto con id ${producto.idTexto}: saldo kardex inválido`);
+        continue;
+      }
+      if (ultimo && stockAnterior === stockActual) continue;
       const fecha = fechaPosterior(ultimo?.fecha);
-      insertar.run(producto.id, stockActual - stockAnterior, stockAnterior, stockActual, fecha);
+      insertar.run(productoId, stockActual - stockAnterior, stockAnterior, stockActual, fecha);
     }
     db.exec('COMMIT');
   } catch (error) {
