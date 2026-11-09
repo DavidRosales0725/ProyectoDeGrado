@@ -1,0 +1,8 @@
+Ícono e instalador de TiendaApp
+
+- Puedes reemplazar build/icon.png por tu logo en formato PNG cuadrado de 512×512.
+- Para regenerar el ícono placeholder, ejecuta: node build/generar-icono.js
+- Para generar el instalador de Windows, ejecuta: npm run dist. El resultado queda en dist/.
+- Si electron-builder falla por enlaces simbólicos, abre la terminal como administrador o activa el modo desarrollador de Windows.
+- El instalador no está firmado y Windows puede mostrar la advertencia de “editor desconocido”.
+- electron-builder necesita internet la primera vez para descargar las herramientas de empaquetado.

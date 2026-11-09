@@ -1,5 +1,6 @@
-const { app, BrowserWindow, ipcMain, dialog, nativeImage, protocol, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, dialog, nativeImage, protocol, shell } = require("electron");
 const path = require("path");
+app.setPath('userData', path.join(app.getPath('appData'), 'proyecto'));
 const imagenes = require('./imagenes-productos');
 
 protocol.registerSchemesAsPrivileged([{
@@ -13,6 +14,8 @@ function crearVentana() {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
+    title: 'TiendaApp',
+    icon: path.join(__dirname, 'build', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -62,6 +65,8 @@ app.whenReady().then(() => {
   const respaldos = require('./respaldos');
   respaldos.registrarRespaldos(ipcMain, { db, app, dialog, shell });
   respaldos.programarRespaldosAutomaticos({ db, app });
+  app.setAppUserModelId('co.sena.tiendaapp');
+  if (app.isPackaged) Menu.setApplicationMenu(null);
   crearVentana();
 }).catch(manejarErrorInicio);
 
