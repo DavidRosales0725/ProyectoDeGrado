@@ -4,7 +4,9 @@ const {
   LIMITE_MONTO,
   MAX_CLIENTE,
   MAX_NOMBRE,
+  MAX_MOTIVO,
   validarTextoUnaLinea,
+  esIdValido,
 } = require('./limites');
 const { handle } = require('./autorizacion');
 const { fechaLocalBogota } = require('./fechas');
@@ -129,8 +131,8 @@ function obtenerVenta(db, id) {
 }
 
 function validarMotivo(motivoEntrada) {
-  const motivo = validarTextoUnaLinea(motivoEntrada, 'El motivo de anulación', 200);
-  if (motivo.length < 3) throw new Error('El motivo de anulación debe tener entre 3 y 200 caracteres');
+  const motivo = validarTextoUnaLinea(motivoEntrada, 'El motivo de anulación', MAX_MOTIVO);
+  if (motivo.length < 3) throw new Error(`El motivo de anulación debe tener entre 3 y ${MAX_MOTIVO} caracteres`);
   return motivo;
 }
 
@@ -268,9 +270,7 @@ function normalizarItems(items) {
 
     const productoId = Number(item?.productoId);
     const cantidad = Number(item?.cantidad);
-    if (!Number.isInteger(productoId) || productoId <= 0) {
-      throw new Error('Hay un producto inválido en la venta');
-    }
+    if (!esIdValido(productoId)) throw new Error('Identificador inválido');
     if (!Number.isSafeInteger(cantidad) || cantidad <= 0) {
       throw new Error('La cantidad de cada producto debe ser un entero mayor a 0');
     }
@@ -293,8 +293,17 @@ function normalizarItems(items) {
   return lineas;
 }
 
+function validarIdentificadoresItems(items) {
+  if (!Array.isArray(items)) return;
+  for (const item of items) {
+    if (item?.libre === true) continue;
+    if (!esIdValido(Number(item?.productoId))) throw new Error('Identificador inválido');
+  }
+}
+
 module.exports = function registrarVentas(ipcMain, db) {
   handle(ipcMain, 'ventas:registrar', ['administrador', 'vendedor'], (_, sesion, datos) => {
+    validarIdentificadoresItems(datos?.items);
     db.exec('BEGIN IMMEDIATE');
     try {
       const venta = registrarVentaEnTransaccion(db, sesion, datos);
@@ -320,6 +329,7 @@ module.exports = function registrarVentas(ipcMain, db) {
   handle(ipcMain, 'ventas:corregir', ['administrador', 'vendedor'], (_, sesion, solicitud) => {
     const motivo = validarMotivo(solicitud?.motivo);
     const ventaId = Number(solicitud?.ventaId);
+    validarIdentificadoresItems(solicitud?.items);
     db.exec('BEGIN IMMEDIATE');
     try {
       const original = validarPermisoVenta(db, sesion, ventaId);

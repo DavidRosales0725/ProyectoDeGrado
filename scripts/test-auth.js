@@ -75,6 +75,11 @@ try {
   assert.equal(require('../sesion').verificarClave('clave-admin-123', hash), true);
   assert.throws(() => invocar('auth:login', { usuario: 'admin', password: 'clave-equivocada' }), /Usuario o contraseña incorrectos/);
   invocar('auth:login', { usuario: 'admin', password: 'clave-admin-123' });
+  assert.throws(
+    () => invocar('usuarios:restablecerClave', Number.MAX_SAFE_INTEGER + 1, 'clave-nueva-valida-123'),
+    /Identificador inválido/,
+  );
+  console.log('✅ restablecer clave rechaza un ID inseguro');
   console.log('✅ hash scrypt, comparación de clave, login genérico y primer administrador único');
 
   const antesMigracion = db.prepare('SELECT numero, usuario_id FROM ventas WHERE numero = ?').get('LEGACY-1');

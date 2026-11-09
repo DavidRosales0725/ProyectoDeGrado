@@ -20,4 +20,8 @@ function validarTextoUnaLinea(valor, campo, maximo) {
   return texto.trim();
 }
 
-module.exports = { ...LIMITES, validarTextoUnaLinea };
+function esIdValido(valor) {
+  return Number.isSafeInteger(valor) && valor > 0;
+}
+
+module.exports = { ...LIMITES, validarTextoUnaLinea, esIdValido };

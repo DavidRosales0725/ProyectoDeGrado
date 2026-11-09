@@ -1,5 +1,6 @@
 const { crearHash, validarNombre, validarUsuario, validarClave } = require('./sesion');
 const { handle } = require('./autorizacion');
+const { esIdValido } = require('./limites');
 
 const SELECT_USUARIOS = `
   SELECT id, nombre, usuario, rol, activo, creado
@@ -76,6 +77,7 @@ function registrarUsuarios(ipcMain, db) {
 
   handle(ipcMain, 'usuarios:restablecerClave', ['administrador'], (_, sesion, id, password) => {
     const usuarioId = Number(id);
+    if (!esIdValido(usuarioId)) throw new Error('Identificador inválido');
     const usuario = db.prepare('SELECT usuario FROM usuarios WHERE id = ?').get(usuarioId);
     if (!usuario) throw new Error('El usuario no existe');
     const clave = validarClave(password, usuario.usuario);

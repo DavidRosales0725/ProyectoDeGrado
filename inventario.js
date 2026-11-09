@@ -1,5 +1,5 @@
 // inventario.js
-const { LIMITE_STOCK, MAX_MOTIVO, validarTextoUnaLinea } = require('./limites');
+const { LIMITE_STOCK, MAX_MOTIVO, validarTextoUnaLinea, esIdValido } = require('./limites');
 const { handle } = require('./autorizacion');
 
 module.exports = function registrarInventario(ipcMain, db) {
@@ -9,7 +9,7 @@ module.exports = function registrarInventario(ipcMain, db) {
         const cantidad = Number(datos?.cantidad);
         const motivo = validarTextoUnaLinea(datos?.motivo, 'El motivo', MAX_MOTIVO);
 
-        if (!Number.isInteger(productoId)) throw new Error('Producto inválido');
+        if (!esIdValido(productoId)) throw new Error('Identificador inválido');
         if (!['entrada', 'salida', 'manual'].includes(tipo)) throw new Error('Tipo de ajuste inválido');
         if (sesion.rol === 'vendedor' && tipo === 'manual') {
             throw new Error('No tienes permiso para hacer ajustes manuales');

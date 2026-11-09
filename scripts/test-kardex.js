@@ -43,6 +43,15 @@ prueba('crear producto registra saldo inicial', ({ db, invocar }) => {
   assert.equal(movimiento.diferencia, 8);
 });
 
+prueba('crear producto con stock cero registra movimiento inicial sin diferencia', ({ db, invocar }) => {
+  const p = invocar('productos:crear', { nombre:'Producto agotado', categoria:'Prueba', descripcion:'', precio:500, stock:0, stockMin:1 });
+  const movimientos = db.prepare('SELECT tipo, diferencia, stock_anterior, stock_nuevo, motivo FROM movimientos_inventario WHERE producto_id=?').all(p.id);
+  assert.equal(movimientos.length, 1);
+  assert.deepEqual({ ...movimientos[0] }, {
+    tipo:'inicial', diferencia:0, stock_anterior:0, stock_nuevo:0, motivo:'Stock inicial',
+  });
+});
+
 prueba('movimiento de venta queda ligado a venta y sesión', ({ db, invocar }) => {
   const p = invocar('productos:crear', { nombre:'Leche', categoria:'Abarrotes', descripcion:'', precio:1000, stock:5, stockMin:1 });
   const sesion = require('../sesion').obtenerSesion();

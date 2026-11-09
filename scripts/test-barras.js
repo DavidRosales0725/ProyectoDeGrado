@@ -48,6 +48,13 @@ prueba('crear producto con código y encontrarlo', ({ invocar }) => {
   assert.equal(invocar('productos:buscarPorCodigo', ' 7701234567890 ' ).nombre, 'Leche');
 });
 
+prueba('rechaza búsquedas con código mayor a 48 caracteres sin truncarlo', ({ invocar }) => {
+  const codigo = 'A'.repeat(48);
+  invocar('productos:crear', producto('Código máximo', codigo));
+  assert.equal(invocar('productos:buscarPorCodigo', ` ${codigo}X `), null);
+  assert.equal(invocar('productos:buscarPorCodigo', ` ${codigo} `).nombre, 'Código máximo');
+});
+
 prueba('código activo duplicado se rechaza indicando el producto dueño', ({ invocar }) => {
   invocar('productos:crear', producto('Arroz', 'ABC-123'));
   assert.throws(

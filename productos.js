@@ -5,6 +5,7 @@ const {
   MAX_CATEGORIA,
   MAX_DESCRIPCION,
   validarTextoUnaLinea,
+  esIdValido,
 } = require('./limites');
 const { handle } = require('./autorizacion');
 const imagenes = require('./imagenes-productos');
@@ -110,13 +111,11 @@ module.exports = function registrarProductos(ipcMain, db, opciones = {}) {
         'INSERT INTO productos (nombre, categoria, precio, stock, stock_min, descripcion, codigo_barras) VALUES (?, ?, ?, ?, ?, ?, ?)'
       ).run(p.nombre, p.categoria, p.precio, p.stock, p.stockMin, p.descripcion, p.codigoBarras));
       const id = Number(r.lastInsertRowid);
-      if (p.stock > 0) {
-        db.prepare(`
-          INSERT INTO movimientos_inventario
-            (producto_id, usuario_id, venta_id, tipo, diferencia, stock_anterior, stock_nuevo, motivo)
-          VALUES (?, ?, NULL, 'inicial', ?, 0, ?, 'Stock inicial')
-        `).run(id, sesion.id, p.stock, p.stock);
-      }
+      db.prepare(`
+        INSERT INTO movimientos_inventario
+          (producto_id, usuario_id, venta_id, tipo, diferencia, stock_anterior, stock_nuevo, motivo)
+        VALUES (?, ?, NULL, 'inicial', ?, 0, ?, 'Stock inicial')
+      `).run(id, sesion.id, p.stock, p.stock);
       if (imagen) imagenes.guardarImagen(db, id, imagen);
       db.exec('COMMIT');
       return db.prepare(`${SELECT} WHERE id = ?`).get(id);
@@ -127,27 +126,29 @@ module.exports = function registrarProductos(ipcMain, db, opciones = {}) {
   });
 
   handle(ipcMain, 'productos:actualizar', ['administrador'], (_, sesion, id, datos) => {
+    const productoId = Number(id);
+    if (!esIdValido(productoId)) throw new Error('Identificador inválido');
     const p = validar(datos);
     if (datos?.imagen != null && datos?.quitarImagen === true) throw new Error('Elige una imagen o quítala, pero no ambas acciones a la vez');
     const imagen = datos?.imagen != null ? imagenes.normalizarImagen(procesarImagen, datos.imagen) : null;
-    validarCodigoDisponible(db, p.codigoBarras, id);
+    validarCodigoDisponible(db, p.codigoBarras, productoId);
     db.exec('BEGIN IMMEDIATE');
     try {
-      const anterior = db.prepare('SELECT stock FROM productos WHERE id = ? AND activo = 1').get(id);
+      const anterior = db.prepare('SELECT stock FROM productos WHERE id = ? AND activo = 1').get(productoId);
       ejecutarConErrorCodigo(db, p.codigoBarras, () => db.prepare(
         'UPDATE productos SET nombre=?, categoria=?, precio=?, stock=?, stock_min=?, descripcion=?, codigo_barras=? WHERE id=? AND activo=1'
-      ).run(p.nombre, p.categoria, p.precio, p.stock, p.stockMin, p.descripcion, p.codigoBarras, id));
+      ).run(p.nombre, p.categoria, p.precio, p.stock, p.stockMin, p.descripcion, p.codigoBarras, productoId));
       if (anterior && Number(anterior.stock) !== p.stock) {
         db.prepare(`
           INSERT INTO movimientos_inventario
             (producto_id, usuario_id, venta_id, tipo, diferencia, stock_anterior, stock_nuevo, motivo)
           VALUES (?, ?, NULL, 'manual', ?, ?, ?, 'Edición de producto')
-        `).run(id, sesion.id, p.stock - Number(anterior.stock), Number(anterior.stock), p.stock);
+        `).run(productoId, sesion.id, p.stock - Number(anterior.stock), Number(anterior.stock), p.stock);
       }
-      if (imagen) imagenes.guardarImagen(db, id, imagen);
-      if (datos?.quitarImagen === true) db.prepare('DELETE FROM producto_imagenes WHERE producto_id = ?').run(id);
+      if (imagen) imagenes.guardarImagen(db, productoId, imagen);
+      if (datos?.quitarImagen === true) db.prepare('DELETE FROM producto_imagenes WHERE producto_id = ?').run(productoId);
       db.exec('COMMIT');
-      return db.prepare(`${SELECT} WHERE id = ?`).get(id);
+      return db.prepare(`${SELECT} WHERE id = ?`).get(productoId);
     } catch (error) {
       db.exec('ROLLBACK');
       throw error;
@@ -159,12 +160,14 @@ module.exports = function registrarProductos(ipcMain, db, opciones = {}) {
 
   handle(ipcMain, 'productos:buscarPorCodigo', ['administrador', 'vendedor'], (_, sesion, codigo) => {
     const codigoBarras = String(codigo ?? '').trim();
-    if (!codigoBarras) return null;
+    if (!codigoBarras || codigoBarras.length > 48) return null;
     return db.prepare(`${SELECT} WHERE codigo_barras = ? AND activo = 1`).get(codigoBarras) ?? null;
   });
 
   handle(ipcMain, 'productos:eliminar', ['administrador'], (_, sesion, id) => {
-    db.prepare('UPDATE productos SET activo = 0, codigo_barras = NULL WHERE id = ?').run(id);
+    const productoId = Number(id);
+    if (!esIdValido(productoId)) throw new Error('Identificador inválido');
+    db.prepare('UPDATE productos SET activo = 0, codigo_barras = NULL WHERE id = ?').run(productoId);
     return true;
   });
 };

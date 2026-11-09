@@ -19,7 +19,17 @@ function crearVentana() {
       nodeIntegration: false,
     },
   });
-  win.loadFile("index.html"); // tu línea actual
+  win.loadFile("index.html").catch(manejarErrorInicio);
+}
+
+function manejarErrorInicio(error) {
+  const detalle = String(error?.message ?? error);
+  try {
+    dialog.showErrorBox('Error al iniciar TiendaApp', `No se pudo iniciar la aplicación: ${detalle}`);
+  } catch (errorDialogo) {
+    console.error('No se pudo mostrar el error de inicio:', errorDialogo);
+  }
+  app.exit(1);
 }
 
 app.whenReady().then(() => {
@@ -53,7 +63,7 @@ app.whenReady().then(() => {
   respaldos.registrarRespaldos(ipcMain, { db, app, dialog, shell });
   respaldos.programarRespaldosAutomaticos({ db, app });
   crearVentana();
-});
+}).catch(manejarErrorInicio);
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

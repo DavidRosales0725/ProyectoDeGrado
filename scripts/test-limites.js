@@ -6,6 +6,7 @@ const registrarVentas = require('../ventas');
 const { crearTablasProductos } = registrarProductos;
 const { crearTablasVentas } = registrarVentas;
 const { autenticarAdminPrueba } = require('./test-auth-helper');
+const { esIdValido } = require('../limites');
 
 const db = new DatabaseSync(':memory:');
 db.exec('PRAGMA foreign_keys = ON;');
@@ -42,6 +43,14 @@ function datosProducto(nombre, { stock = 5, precio = 1200 } = {}) {
 }
 
 try {
+  assert.equal(esIdValido(1), true);
+  assert.equal(esIdValido(Number.MAX_SAFE_INTEGER), true);
+  assert.equal(esIdValido(0), false);
+  assert.equal(esIdValido(-1), false);
+  assert.equal(esIdValido(Number.MAX_SAFE_INTEGER + 1), false);
+  assert.equal(esIdValido('1'), false);
+  console.log('✅ esIdValido solo acepta enteros seguros positivos');
+
   assert.throws(
     () => invocar('productos:crear', datosProducto('Stock absurdo', { stock: 444444444444444444 })),
     /stock/i,
@@ -81,6 +90,20 @@ try {
   assert.equal(listado.length, 2);
   assert.equal(listado.find(p => p.nombre === 'Stock máximo').stock, 1000000);
   console.log('✅ productos:listar sigue funcionando después de los rechazos');
+
+  const idInseguro = Number.MAX_SAFE_INTEGER + 1;
+  const productoIdAntes = maximo.id;
+  const stockAntesIDs = db.prepare('SELECT stock FROM productos WHERE id=?').get(productoIdAntes).stock;
+  const movimientosAntesIDs = db.prepare('SELECT COUNT(*) AS n FROM movimientos_inventario').get().n;
+  const ventasAntesIDs = db.prepare('SELECT COUNT(*) AS n FROM ventas').get().n;
+  assert.throws(() => invocar('inventario:ajustar', { productoId:idInseguro, tipo:'entrada', cantidad:1, motivo:'Prueba inválida' }), /Identificador inválido/);
+  assert.throws(() => invocar('ventas:registrar', { cliente:'Prueba', metodoPago:'tarjeta', items:[{ productoId:idInseguro, cantidad:1 }] }), /Identificador inválido/);
+  assert.throws(() => invocar('productos:actualizar', idInseguro, datosProducto('Actualizado')), /Identificador inválido/);
+  assert.throws(() => invocar('productos:eliminar', idInseguro), /Identificador inválido/);
+  assert.equal(db.prepare('SELECT stock FROM productos WHERE id=?').get(productoIdAntes).stock, stockAntesIDs);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM movimientos_inventario').get().n, movimientosAntesIDs);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM ventas').get().n, ventasAntesIDs);
+  console.log('✅ handlers de inventario, ventas y productos rechazan IDs inseguros sin modificar datos');
 
   const nombreMaximo = invocar('productos:crear', datosProducto('N'.repeat(100)));
   assert.equal(nombreMaximo.nombre.length, 100);
